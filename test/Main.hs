@@ -28,6 +28,7 @@ wmTwoWindows :: WmState
 wmTwoWindows =
   WmState { wmWindows = [win0, win1]
           , wmFocused = Just wid0
+          , wmDragResize = ResizeNone
           }
 
 mapsWindow :: Test
@@ -68,11 +69,40 @@ focusFollowsMouse2 =
         -- focus time
         ]
 
+dragMove :: Test
+dragMove =
+  let wm0 = wmTwoWindows
+      (wm1, cs1) = handleEvent (EvDragStart wid0 5 5) wm0
+      (wm2, cs2) = handleEvent (EvDragMove 120 130) wm1
+      (wm3, cs3) = handleEvent EvDragFinish wm2
+      (_, cs4) = handleEvent (EvDragMove 99 99) wm3
+      newBounds = Bounds 115 125 125 135
+  in "window can be drag moved" ~:
+        [ "no initial requests" ~: cs1 ~?= []
+        , "requests move" ~: cs2 ~?= [ReqResize wid0 newBounds]
+        , "no final requests" ~: cs3 ~?= []
+        , "out of context move has no effect" ~: cs4 ~?= []
+        ]
+
+windowResized :: Test
+windowResized =
+  let wm0 = wmTwoWindows
+      bs = Bounds 20 220 30 330
+      (wm1, cs1) = handleEvent (EvWasResized wid0 bs) wm0
+      Just win = findWindow wm1 wid0
+      bounds1 = winBounds win
+  in "window is resized" ~:
+        [ "window has new bounds" ~: bounds1 ~?= bs
+        , "no requests" ~: cs1 ~?= []
+        ]
+
 allTests :: Test
 allTests =
   TestList [ mapsWindow
            , focusFollowsMouse1
            , focusFollowsMouse2
+           , dragMove
+           , windowResized
            ]
 
 main :: IO ()

@@ -1,9 +1,8 @@
 module Shlurp where
 
-import Debug.Trace
-
-import Data.Word
+import Data.List
 import Data.Time.Clock.System
+import Data.Word
 
 type WinId = Word64
 
@@ -24,14 +23,21 @@ data Bounds
            }
   deriving (Eq, Show)
 
+boundsAdd :: Bounds -> (Integer, Integer) -> Bounds
+boundsAdd (Bounds l r t b) (x, y) =
+  Bounds (l + x) (r + x) (t + y) (b + y)
+-- todo DANGER ordering
+
 data Ev
   = EvWasMapped WinId
   | EvWasUnmapped WinId
   | EvWantsMap Win
-  | EvWantsResize Win Bounds
-  | EvWasResized Win Bounds
+  | EvWasResized WinId Bounds
   | EvFocusIn WinId
   | EvMouseEntered WinId
+  | EvDragStart WinId Integer Integer
+  | EvDragMove Integer Integer
+  | EvDragFinish
   deriving (Eq, Show)
 
 data Request
@@ -48,16 +54,25 @@ data Request
 
 -- todo there's "state tracking" and "commands"
 
+data DragResize
+  = DragResize WinId Integer Integer Bounds
+  | ResizeNone
+
 data WmState =
   WmState { wmWindows :: [Win]
           , wmFocused :: Maybe WinId
+          , wmDragResize :: DragResize
           }
 
 wmBlankState :: WmState
 wmBlankState =
   WmState { wmWindows = []
           , wmFocused = Nothing
+          , wmDragResize = ResizeNone
           }
+
+findWindow :: WmState -> WinId -> Maybe Win
+findWindow wm wid = find (\w -> winId w == wid) (wmWindows wm)
 
 wmMappedWindows :: WmState -> [WinId]
 wmMappedWindows wm0 = map winId $ filter winMapped (wmWindows wm0)
@@ -65,12 +80,16 @@ wmMappedWindows wm0 = map winId $ filter winMapped (wmWindows wm0)
 -- | Handle an event. Produces the new window state and any requests which
 -- should be forwarded.
 handleEvent :: Ev -> WmState -> (WmState, [Request])
+
 handleEvent (EvWantsMap w) wm0 =
   let wid = winId w
   in (addWindow w wm0, [ReqManage wid, ReqMap wid])
+
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
+
 handleEvent (EvMouseEntered wid) wm0 =
   (wm0, if (wmFocused wm0 == Just wid) then [] else [ReqFocus wid])
+
 handleEvent (EvFocusIn wid) wm0 =
   let maybePrevWid = wmFocused wm0
       wm1 = wm0 { wmFocused = Just wid }
@@ -79,6 +98,33 @@ handleEvent (EvFocusIn wid) wm0 =
                 of Nothing -> []
                    Just prevWid -> [ReqStyleUnfocused prevWid]
   in (wm1, reqs)
+
+handleEvent (EvDragStart wid x y) wm0 =
+  let mw = findWindow wm0 wid
+      ds = case mw of Nothing -> ResizeNone
+                      Just w -> DragResize wid x y (winBounds w)
+  in (wm0 { wmDragResize = ds }, [])
+
+handleEvent (EvDragMove x y) wm0 =
+  let ds = wmDragResize wm0
+  -- todo if we just maybe for drag resize, can do better here
+  in case ds of
+    DragResize wid x0 y0 origBounds ->
+      let delta = (x - x0, y - y0)
+          newBounds = origBounds `boundsAdd` delta
+      in (wm0, [ReqResize wid newBounds])
+    ResizeNone -> (wm0, [])
+
+handleEvent (EvDragFinish) wm0 = (wm0 { wmDragResize = ResizeNone }, [])
+
+handleEvent (EvWasResized wid bounds) wm0 =
+  let ws0 = wmWindows wm0
+      u w = if winId w == wid
+            then w { winBounds = bounds }
+            else w
+      wm1 = wm0 { wmWindows = map u ws0 }
+  in (wm1, [])
+
 handleEvent _ _ = undefined
 
 -- todo lens?
