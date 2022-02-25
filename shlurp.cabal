@@ -12,8 +12,8 @@ library
 
 executable shlurp
   hs-source-dirs: bin
-  main-is: Shlurp.hs
-  build-depends: base, shlurp, X11
+  main-is: Main.hs
+  build-depends: base, shlurp, X11, time
 
 test-suite tests
   type: exitcode-stdio-1.0
