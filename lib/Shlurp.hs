@@ -88,7 +88,7 @@ handleEvent (EvWantsMap w) wm0 =
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
 
 handleEvent (EvMouseEntered wid) wm0 =
-  (wm0, if (wmFocused wm0 == Just wid) then [] else [ReqFocus wid])
+  (wm0, if wmFocused wm0 == Just wid then [] else [ReqFocus wid])
 
 handleEvent (EvFocusIn wid) wm0 =
   let maybePrevWid = wmFocused wm0
@@ -115,7 +115,7 @@ handleEvent (EvDragMove x y) wm0 =
       in (wm0, [ReqResize wid newBounds])
     ResizeNone -> (wm0, [])
 
-handleEvent (EvDragFinish) wm0 = (wm0 { wmDragResize = ResizeNone }, [])
+handleEvent EvDragFinish wm0 = (wm0 { wmDragResize = ResizeNone }, [])
 
 handleEvent (EvWasResized wid bounds) wm0 =
   let ws0 = wmWindows wm0

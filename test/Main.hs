@@ -6,23 +6,25 @@ wid0 :: WinId
 wid0 = 0
 
 win0 :: Win
-win0 = Win { winId = wid0
-           , winLastFocus = MkSystemTime 0 0
-           , winName = "win 0"
-           , winBounds = Bounds 0 10 0 10
-           , winMapped = False
-           }
+win0 =
+  Win { winId = wid0
+      , winLastFocus = MkSystemTime 0 0
+      , winName = "win 0"
+      , winBounds = Bounds 0 10 0 10
+      , winMapped = False
+      }
 
 wid1 :: WinId
 wid1 = 1
 
 win1 :: Win
-win1 = Win { winId = wid1
-           , winLastFocus = MkSystemTime 0 0
-           , winName = "win 0"
-           , winBounds = Bounds 0 10 0 10
-           , winMapped = False
-           }
+win1 =
+  Win { winId = wid1
+      , winLastFocus = MkSystemTime 0 0
+      , winName = "win 0"
+      , winBounds = Bounds 0 10 0 10
+      , winMapped = False
+      }
 
 wmTwoWindows :: WmState
 wmTwoWindows =
@@ -55,7 +57,6 @@ focusFollowsMouse1 =
         , "requests new focus" ~: cs1 ~?= [ReqFocus wid1]
         , "window 1 is focused" ~: wmFocused wm2 ~?= Just wid1
         , "requests focus styles" ~: cs2 ~?= [ReqStyleFocused wid1, ReqStyleUnfocused wid0]
-        -- focus time
         ]
 
 focusFollowsMouse2 :: Test
@@ -66,7 +67,6 @@ focusFollowsMouse2 =
         [ "window 0 focused" ~: wmFocused wm0 ~?= Just wid0
         , "no requests" ~: cs1 ~?= []
         , "window 0 is still focused" ~: wmFocused wm1 ~?= Just wid0
-        -- focus time
         ]
 
 dragMove :: Test
