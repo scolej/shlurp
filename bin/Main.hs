@@ -32,7 +32,7 @@ main = do
 
   let cm = defaultColormap d (defaultScreen d)
   red <- color_pixel . fst <$> allocNamedColor d cm "#ff0000"
-  grey <- color_pixel . fst <$> allocNamedColor d cm "#eeeeee"
+  grey <- color_pixel . fst <$> allocNamedColor d cm "#333333"
 
   let ro = WmReadOnly
            { roDisplay = d
@@ -68,6 +68,28 @@ convertEvent _ MapNotifyEvent {ev_window = w} = do
 convertEvent _ CrossingEvent {ev_window = w} = do
   return $ Just (EvMouseEntered w)
 
+convertEvent _ MotionEvent { ev_x = x, ev_y = y} = do
+  return $ Just (EvDragMove (fromIntegral x) (fromIntegral y)) -- todo ev name
+
+-- todo destroy window
+
+-- todo smelly; method is called convert but it does grabs
+
+-- todo click and no drag should raise
+-- click and drag should not raise
+
+convertEvent
+  WmReadOnly { roDisplay = d , roRoot = r }
+  ButtonEvent { ev_window = w, ev_event_type = et, ev_x = x, ev_y = y }
+  | et == buttonPress = do
+    let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
+    _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
+    return $ Just (EvDragStart w (fromIntegral x) (fromIntegral y))
+  | et == buttonRelease = do
+    ungrabPointer d currentTime
+    return $ Just EvDragFinish
+  | otherwise = return Nothing
+
 convertEvent _ AnyEvent {ev_event_type = et, ev_window = w} = do
   if et == focusIn
     then return $ Just (EvFocusIn w)
@@ -86,7 +108,7 @@ performReqs ro = mapM_ go
           selectInput d wid $ enterWindowMask .|. focusChangeMask
           setWindowBorderWidth d wid 2
           setWindowBorder d wid (roUnfocusedColour ro)
-          grabButton d button1 mod4Mask wid False buttonPressMask grabModeAsync grabModeAsync none currentTime
+          grabButton d button1 mod1Mask wid False buttonPressMask grabModeAsync grabModeAsync none currentTime
         go (ReqFocus wid) = do
           putStrLn "requesting focus"
           setInputFocus d wid revertToParent currentTime
@@ -96,6 +118,9 @@ performReqs ro = mapM_ go
         go (ReqStyleUnfocused wid) = do
           putStrLn "styling as un-focused"
           setWindowBorder d wid (roUnfocusedColour ro)
+        go (ReqResize wid (Bounds l r t b )) = do
+          putStrLn "resizing window"
+          moveResizeWindow d wid (fromIntegral l) (fromIntegral t) (fromIntegral $ r - l) (fromIntegral $ b - t)
         go r = do
           putStrLn $ "unhandled request " ++ show r
 
