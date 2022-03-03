@@ -56,7 +56,6 @@ convertEvent ro MapRequestEvent {ev_window = w} = do
                }
   return $ Just $
     EvWantsMap Win { winId = w
-                   , winLastFocus = MkSystemTime 0 0
                    , winName = "?"
                    , winBounds = bounds
                    , winMapped = False

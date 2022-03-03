@@ -1,6 +1,5 @@
 import Test.HUnit
 import Shlurp
-import Data.Time.Clock.System
 
 wid0 :: WinId
 wid0 = 0
@@ -8,7 +7,6 @@ wid0 = 0
 win0 :: Win
 win0 =
   Win { winId = wid0
-      , winLastFocus = MkSystemTime 0 0
       , winName = "win 0"
       , winBounds = Bounds 0 10 0 10
       , winMapped = False
@@ -20,7 +18,6 @@ wid1 = 1
 win1 :: Win
 win1 =
   Win { winId = wid1
-      , winLastFocus = MkSystemTime 0 0
       , winName = "win 0"
       , winBounds = Bounds 0 10 0 10
       , winMapped = False
@@ -84,6 +81,41 @@ dragMove =
         , "out of context move has no effect" ~: cs4 ~?= []
         ]
 
+mappedWinAt :: WinId -> Bounds -> Win
+mappedWinAt wid bs =
+  Win { winId = wid
+      , winName = ""
+      , winBounds = bs
+      , winMapped = True
+      }
+
+-- TODO
+--
+-- snap cases
+-- grows out to meet opposing edge
+-- grows to overlap same edge
+--
+-- add conf for
+-- snap distance
+-- snap gap
+
+snap :: Test
+snap =
+  let w1 = 1
+      w2 = 2
+      wm0 = wmBlankState
+            { wmWindows = [ mappedWinAt w1 (Bounds 20 100 20 100)
+                          , mappedWinAt w2 (Bounds 300 400 200 300)
+                          ]
+            }
+      (wm1, _) = handleEvent (EvDragStart w1 30 30) wm0
+      (_, cs2) = handleEvent (EvDragMove 220 30) wm1
+      expectedBounds = Bounds 219 299 20 100
+  in "window snap 1" ~:
+        [ "window snaps to edge" ~: cs2 ~?= [ReqResize w1 expectedBounds]
+        ]
+
+
 windowResized :: Test
 windowResized =
   let wm0 = wmTwoWindows
@@ -103,6 +135,7 @@ allTests =
            , focusFollowsMouse2
            , dragMove
            , windowResized
+           , snap
            ]
 
 main :: IO ()

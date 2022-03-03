@@ -1,14 +1,12 @@
 module Shlurp where
 
 import Data.List
-import Data.Time.Clock.System
 import Data.Word
 
 type WinId = Word64
 
 data Win
   = Win { winId :: WinId
-        , winLastFocus :: SystemTime
         , winName :: String
         , winBounds :: Bounds
         , winMapped :: Bool
