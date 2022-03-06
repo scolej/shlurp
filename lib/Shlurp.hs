@@ -57,17 +57,38 @@ data DragResize
   | ResizeNone
 
 data WmState =
-  WmState { wmWindows :: [Win]
-          , wmFocused :: Maybe WinId
-          , wmDragResize :: DragResize
-          }
+  WmState
+  { wmWindows :: [Win] -- ^ All windows
+  , wmFocused :: Maybe WinId -- ^ The ID of the focused window
+  , wmDragResize :: DragResize -- ^ The current drag-resize state
+  , wmConf :: WmConfig -- ^ Configuration
+  }
+
+data WmConfig =
+  WmConfig
+  { wcSnapDist :: Integer -- ^ Distance below which snapping occurs.
+  , wcSnapGap :: Integer -- ^ Pixels left in between window borders when snapping.
+  , wcBorderWidth :: Integer -- ^ Width of window borders.
+  , wcHandleFrac :: Float -- ^ Fraction of window width/height dedicated to resize handles.
+  }
+
+wcDefault :: WmConfig
+wcDefault =
+  WmConfig
+  { wcSnapDist = 30
+  , wcSnapGap = 2
+  , wcBorderWidth = 4
+  , wcHandleFrac = 0.2
+  }
 
 wmBlankState :: WmState
 wmBlankState =
-  WmState { wmWindows = []
-          , wmFocused = Nothing
-          , wmDragResize = ResizeNone
-          }
+  WmState
+  { wmWindows = []
+  , wmFocused = Nothing
+  , wmDragResize = ResizeNone
+  , wmConf = wcDefault
+  }
 
 findWindow :: WmState -> WinId -> Maybe Win
 findWindow wm wid = find (\w -> winId w == wid) (wmWindows wm)
@@ -86,7 +107,10 @@ handleEvent (EvWantsMap w) wm0 =
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
 
 handleEvent (EvMouseEntered wid) wm0 =
-  (wm0, if wmFocused wm0 == Just wid then [] else [ReqFocus wid])
+  let rs = case wmFocused wm0 of
+             Just _ -> []
+             Nothing -> [ReqFocus wid]
+  in (wm0, rs)
 
 handleEvent (EvFocusIn wid) wm0 =
   let maybePrevWid = wmFocused wm0

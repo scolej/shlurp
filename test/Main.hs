@@ -25,10 +25,11 @@ win1 =
 
 wmTwoWindows :: WmState
 wmTwoWindows =
-  WmState { wmWindows = [win0, win1]
-          , wmFocused = Just wid0
-          , wmDragResize = ResizeNone
-          }
+  wmBlankState
+  { wmWindows = [win0, win1]
+  , wmFocused = Just wid0
+  , wmDragResize = ResizeNone
+  }
 
 mapsWindow :: Test
 mapsWindow =
@@ -68,12 +69,14 @@ focusFollowsMouse2 =
 
 dragMove :: Test
 dragMove =
-  let wm0 = wmTwoWindows
-      (wm1, cs1) = handleEvent (EvDragStart wid0 5 5) wm0
-      (wm2, cs2) = handleEvent (EvDragMove 120 130) wm1
+  let wm0 = wmBlankState
+            { wmWindows = [ mappedWinAt 0 (Bounds 10 100 10 100) ]
+            }
+      (wm1, cs1) = handleEvent (EvDragStart 0 45 45) wm0
+      (wm2, cs2) = handleEvent (EvDragMove 65 65) wm1
       (wm3, cs3) = handleEvent EvDragFinish wm2
       (_, cs4) = handleEvent (EvDragMove 99 99) wm3
-      newBounds = Bounds 115 125 125 135
+      newBounds = Bounds 30 120 30 120
   in "window can be drag moved" ~:
         [ "no initial requests" ~: cs1 ~?= []
         , "requests move" ~: cs2 ~?= [ReqResize wid0 newBounds]
@@ -98,23 +101,65 @@ mappedWinAt wid bs =
 -- add conf for
 -- snap distance
 -- snap gap
+--
 
-snap :: Test
-snap =
+-- The window's width & height as reported by X do not include the border
+-- width. But the x & y position specify the top left position of the start
+-- of the border. So on-screen, the window occupies a rectangle starting
+-- from the reported x & y and extending to the width + 2 * the border
+-- width.
+--
+-- But let's keep this shitty situation outside our garden.
+
+
+-- | Makes a snapping test case.
+snapTest
+  -- | Initial state
+  :: WmState
+  -- | ID of window to move
+  -> WinId
+  -- | Start drag position
+  -> (Integer, Integer)
+  -- | End drag position
+  -> (Integer, Integer)
+  -- | Expected final bounds
+  -> Bounds
+  -- | A test case
+  -> Test
+snapTest wm0 wid (x0, y0) (x1, y1) bs1 =
+  let (wm1, _) = handleEvent (EvDragStart wid x0 y0) wm0
+      (_, cs2) = handleEvent (EvDragMove x1 y1) wm1
+  in cs2 ~?= [ReqResize wid bs1]
+
+snap1 :: Test
+snap1 =
   let w1 = 1
       w2 = 2
       wm0 = wmBlankState
-            { wmWindows = [ mappedWinAt w1 (Bounds 20 100 20 100)
+            { wmWindows = [ mappedWinAt w1 (Bounds 20 40 100 120)
                           , mappedWinAt w2 (Bounds 300 400 200 300)
                           ]
             }
-      (wm1, _) = handleEvent (EvDragStart w1 30 30) wm0
-      (_, cs2) = handleEvent (EvDragMove 220 30) wm1
-      expectedBounds = Bounds 219 299 20 100
-  in "window snap 1" ~:
-        [ "window snaps to edge" ~: cs2 ~?= [ReqResize w1 expectedBounds]
-        ]
+  in "simple snapping cases" ~:
+     [ "window snaps to opposing edge" ~: snapTest wm0 w1 (30, 110) (280, 230) (Bounds 219 299 20 100)
+     -- , "window snaps to same edge" ~: snapTest wm0 w1 (30, 30) (220, 30) (Bounds 219 299 20 100)
+     ]
 
+-- snap :: Test
+-- snap =
+--   let w1 = 1
+--       w2 = 2
+--       wm0 = wmBlankState
+--             { wmWindows = [ mappedWinAt w1 (Bounds 20 100 20 100)
+--                           , mappedWinAt w2 (Bounds 300 400 200 300)
+--                           ]
+--             }
+--       (wm1, _) = handleEvent (EvDragStart w1 30 30) wm0
+--       (_, cs2) = handleEvent (EvDragMove 220 30) wm1
+--       expectedBounds = Bounds 219 299 20 100
+--   in "window snap 1" ~:
+--         [ "window snaps to edge" ~: cs2 ~?= [ReqResize w1 expectedBounds]
+--         ]
 
 windowResized :: Test
 windowResized =
@@ -135,7 +180,7 @@ allTests =
            , focusFollowsMouse2
            , dragMove
            , windowResized
-           , snap
+           , snap1
            ]
 
 main :: IO ()
