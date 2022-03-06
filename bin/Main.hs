@@ -43,7 +43,12 @@ main = do
            , roFocusedColour = red
            , roUnfocusedColour = grey
            }
-      wm0 = wmBlankState
+      conf = wcDefault
+             { wcSnapDist = 15
+             , wcSnapGap = 5
+             , wcBorderWidth = 2
+             }
+      wm0 = wmBlankState { wmConf = conf }
   _ <- handleEventsForever ro wm0
   closeDisplay d
 

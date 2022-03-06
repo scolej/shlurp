@@ -141,25 +141,10 @@ snap1 =
                           ]
             }
   in "simple snapping cases" ~:
-     [ "window snaps to opposing edge" ~: snapTest wm0 w1 (30, 110) (280, 230) (Bounds 219 299 20 100)
-     -- , "window snaps to same edge" ~: snapTest wm0 w1 (30, 30) (220, 30) (Bounds 219 299 20 100)
+     [ "window snaps to single opposing edge"
+       ~: snapTest wm0 w1 (30, 110) (280, 250) (Bounds 277 297 240 260)
+       -- todo other cases
      ]
-
--- snap :: Test
--- snap =
---   let w1 = 1
---       w2 = 2
---       wm0 = wmBlankState
---             { wmWindows = [ mappedWinAt w1 (Bounds 20 100 20 100)
---                           , mappedWinAt w2 (Bounds 300 400 200 300)
---                           ]
---             }
---       (wm1, _) = handleEvent (EvDragStart w1 30 30) wm0
---       (_, cs2) = handleEvent (EvDragMove 220 30) wm1
---       expectedBounds = Bounds 219 299 20 100
---   in "window snap 1" ~:
---         [ "window snaps to edge" ~: cs2 ~?= [ReqResize w1 expectedBounds]
---         ]
 
 windowResized :: Test
 windowResized =

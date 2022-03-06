@@ -1,6 +1,8 @@
 module Shlurp where
 
+import Safe
 import Data.List
+import Data.Maybe
 import Data.Word
 
 type WinId = Word64
@@ -107,10 +109,7 @@ handleEvent (EvWantsMap w) wm0 =
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
 
 handleEvent (EvMouseEntered wid) wm0 =
-  let rs = case wmFocused wm0 of
-             Just _ -> []
-             Nothing -> [ReqFocus wid]
-  in (wm0, rs)
+  (wm0, if wmFocused wm0 == Just wid then [] else [ReqFocus wid])
 
 handleEvent (EvFocusIn wid) wm0 =
   let maybePrevWid = wmFocused wm0
@@ -134,7 +133,10 @@ handleEvent (EvDragMove x y) wm0 =
     DragResize wid x0 y0 origBounds ->
       let delta = (x - x0, y - y0)
           newBounds = origBounds `boundsAdd` delta
-      in (wm0, [ReqResize wid newBounds])
+          otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
+          otherBounds = map winBounds otherWins -- todo add screen bounds
+          snappedBounds = snapBounds (wmConf wm0) otherBounds newBounds
+      in (wm0, [ReqResize wid snappedBounds])
     ResizeNone -> (wm0, [])
 
 handleEvent EvDragFinish wm0 = (wm0 { wmDragResize = ResizeNone }, [])
@@ -169,3 +171,44 @@ setMapped wid wm0 =
             then w { winMapped = True }
             else w
   in wm0 { wmWindows = wins1 }
+
+snapBs :: Integer -> Integer -> Bounds -> Bounds -> (Integer, Integer)
+snapBs d g w0 w1 =
+  let s = snap2 d g
+      x = s (boundsL w0) (boundsR w0) (boundsL w1) (boundsR w1)
+      y = s (boundsT w0) (boundsB w0) (boundsT w1) (boundsB w1)
+  in (x, y)
+
+-- todo it doesn't quite work: it means you can only snap to a single
+-- window at a time; but in reality, you might be snapping to two edges
+-- from two different windows.
+snap2
+  :: Integer -> Integer
+  -> Integer -> Integer
+  -> Integer -> Integer
+  -> Integer
+snap2 d g a1 a2 b1 b2 =
+  let g1 = g + 1
+      -- maybe: if you snap with sign, it only goes in one direction. but i
+      -- think it's not what you want.
+      --
+      --
+      -- pos a = if a >= 0 && a <= d then Just a else Nothing
+      -- neg a = if a <= 0 && a >= (-d) then Just a else Nothing
+      fil a = if abs a < d then Just a else Nothing
+  in headDef 0 $ catMaybes [ fil $ a1 - g1 - b2 -- right edge moves right to meet a left edge
+                           , fil $ a2 + g1 - b1 -- left edge moves left to meet a right edge
+                           , fil $ a1 - b1 -- left edge moves left to overlap a left edge
+                           , fil $ a2 - b2 -- right edge moves right to overlap a right edge
+                           ]
+
+snapBounds :: WmConfig -> [Bounds] -> Bounds -> Bounds
+snapBounds wc otherBs bs =
+  let d = wcSnapDist wc
+      g = wcSnapGap wc
+      m (x, y) = x * x + y * y
+      mc a b = m b `compare` m a
+      ss = map (\o -> snapBs d g o bs) otherBs
+      sso = sortBy mc ss
+      offset = headDef (0, 0) sso
+  in boundsAdd bs offset
