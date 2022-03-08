@@ -1,9 +1,7 @@
 module Shlurp where
 
-import Debug.Trace
 import Safe
 import Data.List
-import Data.Maybe
 import Data.Word
 
 type WinId = Word64
@@ -136,7 +134,7 @@ handleEvent (EvDragMove x y) wm0 =
           newBounds = origBounds `boundsAdd` delta
           otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
           otherBounds = map winBounds otherWins -- todo add screen bounds
-          snappedBounds = snapBounds2 (wmConf wm0) otherBounds newBounds
+          snappedBounds = snapBounds (wmConf wm0) otherBounds newBounds
       in (wm0, [ReqResize wid snappedBounds])
     ResizeNone -> (wm0, [])
 
@@ -151,10 +149,6 @@ handleEvent (EvWasResized wid bounds) wm0 =
   in (wm1, [])
 
 handleEvent _ _ = undefined
-
--- todo lens?
-
--- todo where to use Win and where only win-id?
 
 -- | Add a window to the window list.
 addWindow :: Win -> WmState -> WmState
@@ -173,23 +167,20 @@ setMapped wid wm0 =
             else w
   in wm0 { wmWindows = wins1 }
 
-
-snap3
+-- | Finds the smallest offset which moves a given value to one of a set of
+-- snap values with a limit. If there is no such offset within the limit,
+-- then nothing is returned.
+maybeSnap
   :: Integer
-  -- ^ Snap distance
+  -- ^ snap distance
+  -> Integer
+  -- ^ value to be snapped
   -> [Integer]
-  -- ^ Snap stops: those values onto which we might snap
-  -> Integer
-  -- ^ Value to be snapped
-  -> Integer
-  -- ^ An offset which might snap the value onto a snap-stop
-snap3 d snaps val =
-  headDef 0 $
-  sort $
-  filter (\x -> abs x <= d && x /= 0) $
-  map (\s -> s - val) snaps
-
--- todo we're abusing 0 as Nothing
+  -- ^ snap stops: those values onto which we might snap
+  -> Maybe Integer
+  -- ^ an offset which might snap the value onto a snap-stop
+maybeSnap d val =
+  headMay . sort . filter (\x -> abs x <= d) . map (\s -> s - val)
 
 -- | Finds the set of snap stops, in x and y, which the "low" edge may snap
 -- to, where "low" is left or top.
@@ -205,20 +196,29 @@ snapStopsH g bs = (stopsX, stopsY)
   where stopsX = concatMap (\(Bounds l r _ _) -> [r, l - g - 1]) bs
         stopsY = concatMap (\(Bounds _ _ t b) -> [b, t - g - 1]) bs
 
-snapBounds2 :: WmConfig -> [Bounds] -> Bounds -> Bounds
-snapBounds2 wc otherBounds bs@(Bounds l r t b) =
+-- | Snaps a window's bounds to other bounds or screen edges.
+snapBounds
+  :: WmConfig
+  -- ^ window manager configuration
+  -> [Bounds]
+  -- ^ bounds to which we might snap
+  -> Bounds
+  -- ^ bounds to snap
+  -> Bounds
+  -- ^ potentially snapped bounds or the original bounds unchanged
+snapBounds wc otherBounds bs@(Bounds l r t b) =
   let d = wcSnapDist wc
       g = wcSnapGap wc
       (sxl, syl) = snapStopsL g otherBounds
       (sxh, syh) = snapStopsH g otherBounds
-      ox = smallestNotZero (snap3 d sxl l) (snap3 d sxh r)
-      oy = smallestNotZero (snap3 d syl t) (snap3 d syh b)
+      ox = smallestPresent (maybeSnap d l sxl) (maybeSnap d r sxh)
+      oy = smallestPresent (maybeSnap d t syl) (maybeSnap d b syh)
       offset = (ox, oy)
   in boundsAdd bs offset
 
-smallestNotZero :: Integer -> Integer -> Integer
-smallestNotZero a b
-  | a == 0 = b
-  | b == 0 = a
-  | abs a < abs b = a
-  | otherwise = b
+-- | Finds the smallest of two values.
+smallestPresent :: Maybe Integer -> Maybe Integer -> Integer
+smallestPresent Nothing (Just x) = x
+smallestPresent (Just x) Nothing = x
+smallestPresent (Just a) (Just b) = min a b
+smallestPresent _ _ = 0
