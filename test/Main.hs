@@ -131,8 +131,9 @@ snapTest wm0 wid (x0, y0) (x1, y1) bs1 =
       (_, cs2) = handleEvent (EvDragMove x1 y1) wm1
   in cs2 ~?= [ReqResize wid bs1]
 
-snap1 :: Test
-snap1 =
+-- | Test cases for snapping between two windows.
+snap2Wins :: Test
+snap2Wins =
   let w1 = 1
       w2 = 2
       wm0 = wmBlankState
@@ -143,7 +144,28 @@ snap1 =
   in "simple snapping cases" ~:
      [ "window snaps to single opposing edge"
        ~: snapTest wm0 w1 (30, 110) (280, 250) (Bounds 277 297 240 260)
-       -- todo other cases
+     , "window snaps to single same edge (left)"
+       ~: snapTest wm0 w1 (30, 110) (330, 250) (Bounds 300 320 240 260)
+       -- todo other cases:
+       -- multi edge
+       -- multi edge different window
+     ]
+
+-- | Test cases for snapping between two windows.
+snap3Wins :: Test
+snap3Wins =
+  let w1 = 1
+      w2 = 2
+      w3 = 3
+      wm0 = wmBlankState
+            { wmWindows = [ mappedWinAt w1 (Bounds 20 40 100 120)
+                          , mappedWinAt w2 (Bounds 300 400 200 500)
+                          , mappedWinAt w3 (Bounds 350 500 100 250)
+                          ]
+            }
+  in "slightly trickier snapping cases" ~:
+     [ "window snaps to two opposing edges from different windows "
+       ~: snapTest wm0 w1 (30, 110) (430, 280) (Bounds 403 423 253 273)
      ]
 
 windowResized :: Test
@@ -165,7 +187,8 @@ allTests =
            , focusFollowsMouse2
            , dragMove
            , windowResized
-           , snap1
+           , snap2Wins
+           , snap3Wins
            ]
 
 main :: IO ()

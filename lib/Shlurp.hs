@@ -1,5 +1,6 @@
 module Shlurp where
 
+import Debug.Trace
 import Safe
 import Data.List
 import Data.Maybe
@@ -135,7 +136,7 @@ handleEvent (EvDragMove x y) wm0 =
           newBounds = origBounds `boundsAdd` delta
           otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
           otherBounds = map winBounds otherWins -- todo add screen bounds
-          snappedBounds = snapBounds (wmConf wm0) otherBounds newBounds
+          snappedBounds = snapBounds2 (wmConf wm0) otherBounds newBounds
       in (wm0, [ReqResize wid snappedBounds])
     ResizeNone -> (wm0, [])
 
@@ -172,43 +173,52 @@ setMapped wid wm0 =
             else w
   in wm0 { wmWindows = wins1 }
 
-snapBs :: Integer -> Integer -> Bounds -> Bounds -> (Integer, Integer)
-snapBs d g w0 w1 =
-  let s = snap2 d g
-      x = s (boundsL w0) (boundsR w0) (boundsL w1) (boundsR w1)
-      y = s (boundsT w0) (boundsB w0) (boundsT w1) (boundsB w1)
-  in (x, y)
 
--- todo it doesn't quite work: it means you can only snap to a single
--- window at a time; but in reality, you might be snapping to two edges
--- from two different windows.
-snap2
-  :: Integer -> Integer
-  -> Integer -> Integer
-  -> Integer -> Integer
+snap3
+  :: Integer
+  -- ^ Snap distance
+  -> [Integer]
+  -- ^ Snap stops: those values onto which we might snap
   -> Integer
-snap2 d g a1 a2 b1 b2 =
-  let g1 = g + 1
-      -- maybe: if you snap with sign, it only goes in one direction. but i
-      -- think it's not what you want.
-      --
-      --
-      -- pos a = if a >= 0 && a <= d then Just a else Nothing
-      -- neg a = if a <= 0 && a >= (-d) then Just a else Nothing
-      fil a = if abs a < d then Just a else Nothing
-  in headDef 0 $ catMaybes [ fil $ a1 - g1 - b2 -- right edge moves right to meet a left edge
-                           , fil $ a2 + g1 - b1 -- left edge moves left to meet a right edge
-                           , fil $ a1 - b1 -- left edge moves left to overlap a left edge
-                           , fil $ a2 - b2 -- right edge moves right to overlap a right edge
-                           ]
+  -- ^ Value to be snapped
+  -> Integer
+  -- ^ An offset which might snap the value onto a snap-stop
+snap3 d snaps val =
+  headDef 0 $
+  sort $
+  filter (\x -> abs x <= d && x /= 0) $
+  map (\s -> s - val) snaps
 
-snapBounds :: WmConfig -> [Bounds] -> Bounds -> Bounds
-snapBounds wc otherBs bs =
+-- todo we're abusing 0 as Nothing
+
+-- | Finds the set of snap stops, in x and y, which the "low" edge may snap
+-- to, where "low" is left or top.
+snapStopsL :: Integer -> [Bounds] -> ([Integer], [Integer])
+snapStopsL g bs = (stopsX, stopsY)
+  where stopsX = concatMap (\(Bounds l r _ _) -> [l, r + g + 1]) bs
+        stopsY = concatMap (\(Bounds _ _ t b) -> [t, b + g + 1]) bs
+
+-- | Finds the set of snap stops, in x and y, which the "high" edge may snap
+-- to, where "high" is right or bottom.
+snapStopsH :: Integer -> [Bounds] -> ([Integer], [Integer])
+snapStopsH g bs = (stopsX, stopsY)
+  where stopsX = concatMap (\(Bounds l r _ _) -> [r, l - g - 1]) bs
+        stopsY = concatMap (\(Bounds _ _ t b) -> [b, t - g - 1]) bs
+
+snapBounds2 :: WmConfig -> [Bounds] -> Bounds -> Bounds
+snapBounds2 wc otherBounds bs@(Bounds l r t b) =
   let d = wcSnapDist wc
       g = wcSnapGap wc
-      m (x, y) = x * x + y * y
-      mc a b = m b `compare` m a
-      ss = map (\o -> snapBs d g o bs) otherBs
-      sso = sortBy mc ss
-      offset = headDef (0, 0) sso
+      (sxl, syl) = snapStopsL g otherBounds
+      (sxh, syh) = snapStopsH g otherBounds
+      ox = smallestNotZero (snap3 d sxl l) (snap3 d sxh r)
+      oy = smallestNotZero (snap3 d syl t) (snap3 d syh b)
+      offset = (ox, oy)
   in boundsAdd bs offset
+
+smallestNotZero :: Integer -> Integer -> Integer
+smallestNotZero a b
+  | a == 0 = b
+  | b == 0 = a
+  | abs a < abs b = a
+  | otherwise = b

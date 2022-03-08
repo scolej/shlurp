@@ -10,11 +10,6 @@ library
   exposed-modules: Shlurp
   default-language: Haskell2010
 
-executable shlurp
-  hs-source-dirs: bin
-  main-is: Main.hs
-  build-depends: base, shlurp, X11, time
-
 test-suite tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
@@ -22,3 +17,8 @@ test-suite tests
   ghc-options: -Wall
   build-depends: base, HUnit, shlurp, time
   default-language: Haskell2010
+
+-- executable shlurp
+--   hs-source-dirs: bin
+--   main-is: Main.hs
+--   build-depends: base, shlurp, X11, time
