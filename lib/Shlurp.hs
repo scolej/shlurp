@@ -3,6 +3,7 @@ module Shlurp where
 import Safe
 import Data.List
 import Data.Word
+import Debug.Trace
 
 type WinId = Word64
 
@@ -25,7 +26,6 @@ data Bounds
 boundsAdd :: Bounds -> (Integer, Integer) -> Bounds
 boundsAdd (Bounds l r t b) (x, y) =
   Bounds (l + x) (r + x) (t + y) (b + y)
--- todo DANGER ordering
 
 data Ev
   = EvWasMapped WinId
@@ -167,6 +167,40 @@ setMapped wid wm0 =
             else w
   in wm0 { wmWindows = wins1 }
 
+-- data MoveResizeHandle
+--   = MoveResizeHandleL
+--   | MoveResizeHandleR
+--   | MoveResizeHandleT
+--   | MoveResizeHandleB
+--   | MoveResizeHandleTL
+--   | MoveResizeHandleTR
+--   | MoveResizeHandleBL
+--   | MoveResizeHandleBR
+--   | MoveResizeHandleCentre
+
+-- | Decide which part of the window has been gripped based on its bounds,
+-- the handle ratio, and the group position.
+grabWindowHandle :: Rational -> Bounds -> (Integer, Integer) -> (Integer, Integer)
+grabWindowHandle ratio (Bounds l r t b) (x, y) =
+  let w = r - l
+      h = b - t
+      ratio' = 1 - ratio
+      fi = fromIntegral
+      x1 = fi l + fi w * ratio
+      x2 = fi l + fi w * ratio'
+      y1 = fi t + fi h * ratio
+      y2 = fi t + fi h * ratio'
+      xh | fi x < x1 = -1
+         | fi x < x2 = 0
+         | otherwise = 1
+      yh | fi y < y1 = -1
+         | fi y < y2 = 0
+         | otherwise = 1
+  in (xh, yh)
+
+absMag :: Integer -> Integer -> Ordering
+absMag a b = abs a `compare` abs b
+
 -- | Finds the smallest offset which moves a given value to one of a set of
 -- snap values with a limit. If there is no such offset within the limit,
 -- then nothing is returned.
@@ -180,7 +214,7 @@ maybeSnap
   -> Maybe Integer
   -- ^ an offset which might snap the value onto a snap-stop
 maybeSnap d val =
-  headMay . sort . filter (\x -> abs x <= d) . map (\s -> s - val)
+  headMay . sortBy absMag . filter (\x -> abs x <= d) . map (\s -> s - val)
 
 -- | Finds the set of snap stops, in x and y, which the "low" edge may snap
 -- to, where "low" is left or top.
@@ -213,7 +247,7 @@ snapBounds wc otherBounds bs@(Bounds l r t b) =
       (sxh, syh) = snapStopsH g otherBounds
       ox = smallestPresent (maybeSnap d l sxl) (maybeSnap d r sxh)
       oy = smallestPresent (maybeSnap d t syl) (maybeSnap d b syh)
-      offset = (ox, oy)
+      offset = traceShowId (ox, oy)
   in boundsAdd bs offset
 
 -- | Finds the smallest of two values.

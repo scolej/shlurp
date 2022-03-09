@@ -112,8 +112,8 @@ mappedWinAt wid bs =
 -- But let's keep this shitty situation outside our garden.
 
 
--- | Makes a snapping test case.
-snapTest
+-- | Makes a drag move/resize test case.
+dragMoveResizeTest
   -- | Initial state
   :: WmState
   -- | ID of window to move
@@ -126,7 +126,7 @@ snapTest
   -> Bounds
   -- | A test case
   -> Test
-snapTest wm0 wid (x0, y0) (x1, y1) bs1 =
+dragMoveResizeTest wm0 wid (x0, y0) (x1, y1) bs1 =
   let (wm1, _) = handleEvent (EvDragStart wid x0 y0) wm0
       (_, cs2) = handleEvent (EvDragMove x1 y1) wm1
   in cs2 ~?= [ReqResize wid bs1]
@@ -143,9 +143,9 @@ snap2Wins =
             }
   in "simple snapping cases" ~:
      [ "window snaps to single opposing edge"
-       ~: snapTest wm0 w1 (30, 110) (280, 250) (Bounds 277 297 240 260)
+       ~: dragMoveResizeTest wm0 w1 (30, 110) (280, 250) (Bounds 277 297 240 260)
      , "window snaps to single same edge (left)"
-       ~: snapTest wm0 w1 (30, 110) (330, 250) (Bounds 300 320 240 260)
+       ~: dragMoveResizeTest wm0 w1 (30, 110) (330, 250) (Bounds 300 320 240 260)
        -- todo other cases:
        -- multi edge
        -- multi edge different window
@@ -165,7 +165,22 @@ snap3Wins =
             }
   in "slightly trickier snapping cases" ~:
      [ "window snaps to two opposing edges from different windows "
-       ~: snapTest wm0 w1 (30, 110) (430, 280) (Bounds 403 423 253 273)
+       ~: dragMoveResizeTest wm0 w1 (30, 110) (430, 280) (Bounds 403 423 253 273)
+     ]
+
+resizeAWindow :: Test
+resizeAWindow =
+  let w1 = 1
+      wm0 = wmBlankState { wmWindows = [ mappedWinAt w1 (Bounds 100 200 300 400) ]}
+  in "single window resize, no snap" ~:
+     [ "drag right handle "
+       ~: dragMoveResizeTest wm0 w1 (195, 350) (215, 360) (Bounds 100 220 300 400)
+     , "drag left handle "
+       ~: dragMoveResizeTest wm0 w1 (105, 350) (95, 360) (Bounds 90 200 300 400)
+     , "drag top handle "
+       ~: dragMoveResizeTest wm0 w1 (150, 305) (160, 295) (Bounds 100 200 290 400)
+     , "drag bottom handle "
+       ~: dragMoveResizeTest wm0 w1 (150, 395) (160, 405) (Bounds 100 200 290 400)
      ]
 
 windowResized :: Test
@@ -189,6 +204,7 @@ allTests =
            , windowResized
            , snap2Wins
            , snap3Wins
+           , resizeAWindow
            ]
 
 main :: IO ()
