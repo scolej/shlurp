@@ -28,7 +28,7 @@ wmTwoWindows =
   wmBlankState
   { wmWindows = [win0, win1]
   , wmFocused = Just wid0
-  , wmDragResize = ResizeNone
+  , wmDragResize = Nothing
   }
 
 mapsWindow :: Test
@@ -180,7 +180,7 @@ resizeAWindow =
      , "drag top handle "
        ~: dragMoveResizeTest wm0 w1 (150, 305) (160, 295) (Bounds 100 200 290 400)
      , "drag bottom handle "
-       ~: dragMoveResizeTest wm0 w1 (150, 395) (160, 405) (Bounds 100 200 290 400)
+       ~: dragMoveResizeTest wm0 w1 (150, 395) (160, 405) (Bounds 100 200 300 410)
      ]
 
 windowResized :: Test

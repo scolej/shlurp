@@ -27,6 +27,10 @@ boundsAdd :: Bounds -> (Integer, Integer) -> Bounds
 boundsAdd (Bounds l r t b) (x, y) =
   Bounds (l + x) (r + x) (t + y) (b + y)
 
+boundsAdd4 :: Bounds -> (Integer, Integer, Integer, Integer) -> Bounds
+boundsAdd4 (Bounds l r t b) (dl, dr, dt, db) =
+  Bounds (l + dl) (r + dr) (t + dt) (b + db)
+
 data Ev
   = EvWasMapped WinId
   | EvWasUnmapped WinId
@@ -54,23 +58,28 @@ data Request
 -- todo there's "state tracking" and "commands"
 
 data DragResize
-  = DragResize WinId Integer Integer Bounds
-  | ResizeNone
+  = DragResize
+  { drWin :: WinId -- ^ window id being dragged
+  , drClickX :: Integer -- ^ x coordinate of where drag started (absolute)
+  , drClickY :: Integer -- ^ y coordinate of where drag started (absolute)
+  , drHandleClicked :: ResizeHandle -- ^ which part of the window handle was clicked
+  , drInitBounds :: Bounds -- ^ initial window bounds
+  }
 
 data WmState =
   WmState
-  { wmWindows :: [Win] -- ^ All windows
-  , wmFocused :: Maybe WinId -- ^ The ID of the focused window
-  , wmDragResize :: DragResize -- ^ The current drag-resize state
-  , wmConf :: WmConfig -- ^ Configuration
+  { wmWindows :: [Win] -- ^ all windows
+  , wmFocused :: Maybe WinId -- ^ id of the focused window
+  , wmDragResize :: Maybe DragResize -- ^ current drag-resize state
+  , wmConf :: WmConfig -- ^ configuration
   }
 
 data WmConfig =
   WmConfig
-  { wcSnapDist :: Integer -- ^ Distance below which snapping occurs.
-  , wcSnapGap :: Integer -- ^ Pixels left in between window borders when snapping.
-  , wcBorderWidth :: Integer -- ^ Width of window borders.
-  , wcHandleFrac :: Float -- ^ Fraction of window width/height dedicated to resize handles.
+  { wcSnapDist :: Integer -- ^ distance below which snapping occurs
+  , wcSnapGap :: Integer -- ^ pixels left in between window borders when snapping
+  , wcBorderWidth :: Integer -- ^ width of window borders
+  , wcHandleFrac :: Rational -- ^ fraction of window width/height dedicated to resize handles
   }
 
 wcDefault :: WmConfig
@@ -79,7 +88,7 @@ wcDefault =
   { wcSnapDist = 30
   , wcSnapGap = 2
   , wcBorderWidth = 4
-  , wcHandleFrac = 0.2
+  , wcHandleFrac = 0.1
   }
 
 wmBlankState :: WmState
@@ -87,7 +96,7 @@ wmBlankState =
   WmState
   { wmWindows = []
   , wmFocused = Nothing
-  , wmDragResize = ResizeNone
+  , wmDragResize = Nothing
   , wmConf = wcDefault
   }
 
@@ -121,24 +130,41 @@ handleEvent (EvFocusIn wid) wm0 =
 
 handleEvent (EvDragStart wid x y) wm0 =
   let mw = findWindow wm0 wid
-      ds = case mw of Nothing -> ResizeNone
-                      Just w -> DragResize wid x y (winBounds w)
+      hf = wcHandleFrac $ wmConf wm0
+      ds = do
+        win <- mw
+        let bs = winBounds win
+            hand = grabWindowHandle hf bs (x, y)
+        return $ DragResize wid x y hand bs
   in (wm0 { wmDragResize = ds }, [])
 
 handleEvent (EvDragMove x y) wm0 =
   let ds = wmDragResize wm0
   -- todo if we just maybe for drag resize, can do better here
   in case ds of
-    DragResize wid x0 y0 origBounds ->
-      let delta = (x - x0, y - y0)
-          newBounds = origBounds `boundsAdd` delta
+    Just (DragResize wid x0 y0 hand origBounds) ->
+      let dx = x - x0
+          dy = y - y0
+          (sl, sr, st, sb) =
+            case hand of
+              ResizeHandle HL HL -> (1, 0, 1, 0)
+              ResizeHandle HL HM -> (1, 0, 0, 0)
+              ResizeHandle HL HH -> (1, 0, 0, 1)
+              ResizeHandle HM HL -> (0, 0, 1, 0)
+              ResizeHandle HM HM -> (1, 1, 1, 1)
+              ResizeHandle HM HH -> (0, 0, 0, 1)
+              ResizeHandle HH HL -> (0, 1, 1, 0)
+              ResizeHandle HH HM -> (0, 1, 0, 0)
+              ResizeHandle HH HH -> (0, 1, 0, 1)
+          delta4 = (sl * dx, sr * dx, st * dy, sb * dy)
+          newBounds = origBounds `boundsAdd4` delta4
           otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
           otherBounds = map winBounds otherWins -- todo add screen bounds
           snappedBounds = snapBounds (wmConf wm0) otherBounds newBounds
       in (wm0, [ReqResize wid snappedBounds])
-    ResizeNone -> (wm0, [])
+    Nothing -> (wm0, [])
 
-handleEvent EvDragFinish wm0 = (wm0 { wmDragResize = ResizeNone }, [])
+handleEvent EvDragFinish wm0 = (wm0 { wmDragResize = Nothing }, [])
 
 handleEvent (EvWasResized wid bounds) wm0 =
   let ws0 = wmWindows wm0
@@ -167,20 +193,17 @@ setMapped wid wm0 =
             else w
   in wm0 { wmWindows = wins1 }
 
--- data MoveResizeHandle
---   = MoveResizeHandleL
---   | MoveResizeHandleR
---   | MoveResizeHandleT
---   | MoveResizeHandleB
---   | MoveResizeHandleTL
---   | MoveResizeHandleTR
---   | MoveResizeHandleBL
---   | MoveResizeHandleBR
---   | MoveResizeHandleCentre
+-- todo revise author
+
+-- | Handles: low, middle and high.
+data CoHandle = HL | HM | HH
+
+-- | Two co-handles specify one of 9 resize handles.
+data ResizeHandle = ResizeHandle CoHandle CoHandle
 
 -- | Decide which part of the window has been gripped based on its bounds,
 -- the handle ratio, and the group position.
-grabWindowHandle :: Rational -> Bounds -> (Integer, Integer) -> (Integer, Integer)
+grabWindowHandle :: Rational -> Bounds -> (Integer, Integer) -> ResizeHandle
 grabWindowHandle ratio (Bounds l r t b) (x, y) =
   let w = r - l
       h = b - t
@@ -190,13 +213,13 @@ grabWindowHandle ratio (Bounds l r t b) (x, y) =
       x2 = fi l + fi w * ratio'
       y1 = fi t + fi h * ratio
       y2 = fi t + fi h * ratio'
-      xh | fi x < x1 = -1
-         | fi x < x2 = 0
-         | otherwise = 1
-      yh | fi y < y1 = -1
-         | fi y < y2 = 0
-         | otherwise = 1
-  in (xh, yh)
+      xh | fi x < x1 = HL
+         | fi x < x2 = HM
+         | otherwise = HH
+      yh | fi y < y1 = HL
+         | fi y < y2 = HM
+         | otherwise = HH
+  in ResizeHandle xh yh
 
 absMag :: Integer -> Integer -> Ordering
 absMag a b = abs a `compare` abs b
@@ -249,6 +272,8 @@ snapBounds wc otherBounds bs@(Bounds l r t b) =
       oy = smallestPresent (maybeSnap d t syl) (maybeSnap d b syh)
       offset = traceShowId (ox, oy)
   in boundsAdd bs offset
+
+-- todo return 4 ints, use add4
 
 -- | Finds the smallest of two values.
 smallestPresent :: Maybe Integer -> Maybe Integer -> Integer
