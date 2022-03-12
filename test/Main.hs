@@ -164,7 +164,7 @@ snap3Wins =
                           ]
             }
   in "slightly trickier snapping cases" ~:
-     [ "window snaps to two opposing edges from different windows "
+     [ "window snaps to two opposing edges from different windows"
        ~: dragMoveResizeTest wm0 w1 (30, 110) (430, 280) (Bounds 403 423 253 273)
      ]
 
@@ -173,14 +173,32 @@ resizeAWindow =
   let w1 = 1
       wm0 = wmBlankState { wmWindows = [ mappedWinAt w1 (Bounds 100 200 300 400) ]}
   in "single window resize, no snap" ~:
-     [ "drag right handle "
+     [ "drag right handle"
        ~: dragMoveResizeTest wm0 w1 (195, 350) (215, 360) (Bounds 100 220 300 400)
-     , "drag left handle "
+     , "drag left handle"
        ~: dragMoveResizeTest wm0 w1 (105, 350) (95, 360) (Bounds 90 200 300 400)
-     , "drag top handle "
+     , "drag top handle"
        ~: dragMoveResizeTest wm0 w1 (150, 305) (160, 295) (Bounds 100 200 290 400)
-     , "drag bottom handle "
+     , "drag bottom handle"
        ~: dragMoveResizeTest wm0 w1 (150, 395) (160, 405) (Bounds 100 200 300 410)
+     ]
+
+resizeSnap :: Test
+resizeSnap =
+  -- Three windows are already perfectly snapped into place.
+  -- In each test, we'll dry to de-snap them, and it shouldn't work.
+  let b1 = Bounds 100 200 100 200
+      b2 = Bounds 203 303 100 200
+      b3 = Bounds 306 406 100 200
+      wm0 = wmBlankState
+            { wmWindows = [ mappedWinAt 1 b1
+                          , mappedWinAt 2 b2
+                          , mappedWinAt 3 b3
+                          ]
+            }
+  in "resize de-snap resist" ~:
+     [ "left" ~: dragMoveResizeTest wm0 2 (208, 150) (213, 150) b2
+     , "right" ~: dragMoveResizeTest wm0 2 (298, 150) (293, 150) b2
      ]
 
 windowResized :: Test
@@ -205,6 +223,7 @@ allTests =
            , snap2Wins
            , snap3Wins
            , resizeAWindow
+           , resizeSnap
            ]
 
 main :: IO ()

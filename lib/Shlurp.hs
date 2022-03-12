@@ -4,6 +4,7 @@ import Safe
 import Data.List
 import Data.Word
 import Debug.Trace
+import Data.Maybe
 
 type WinId = Word64
 
@@ -148,7 +149,7 @@ handleEvent (EvDragMove x y) wm0 =
     Just (DragResize wid x0 y0 hand origBounds) ->
       let dx = x - x0
           dy = y - y0
-          mask@(sl, sr, st, sb) =
+          (sl, sr, st, sb) =
             case hand of
               ResizeHandle HL HL -> (1, 0, 1, 0)
               ResizeHandle HL HM -> (1, 0, 0, 0)
@@ -163,7 +164,7 @@ handleEvent (EvDragMove x y) wm0 =
           newBounds = origBounds `boundsAdd4` delta4
           otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
           otherBounds = map winBounds otherWins -- todo add screen bounds
-          snappedBounds = snapBounds (wmConf wm0) otherBounds mask newBounds
+          snappedBounds = snapBounds (wmConf wm0) otherBounds (hand == ResizeHandle HM HM) newBounds
       in (wm0, [ReqResize wid snappedBounds])
     Nothing -> (wm0, [])
 
@@ -200,9 +201,11 @@ setMapped wid wm0 =
 
 -- | Handles: low, middle and high.
 data CoHandle = HL | HM | HH
+  deriving (Eq)
 
 -- | Two co-handles specify one of 9 resize handles.
 data ResizeHandle = ResizeHandle CoHandle CoHandle
+  deriving (Eq)
 
 -- | Decide which part of the window has been gripped based on its bounds,
 -- the handle ratio, and the group position.
@@ -262,24 +265,28 @@ snapBounds
   -- ^ window manager configuration
   -> [Bounds]
   -- ^ bounds to which we might snap
-  -> (Integer, Integer, Integer, Integer)
-  -- ^ edge mask, l r t b, which we may snap
+  -> Bool
+  -- ^ true to maintain bounds width & height
   -> Bounds
   -- ^ bounds to snap
   -> Bounds
   -- ^ potentially snapped bounds or the original bounds unchanged
-snapBounds wc otherBounds mask bs@(Bounds l r t b) =
+snapBounds wc otherBounds fixSize bs@(Bounds l r t b) =
   let d = wcSnapDist wc
       g = wcSnapGap wc
       (sxl, syl) = snapStopsL g otherBounds
       (sxh, syh) = snapStopsH g otherBounds
-      ox = smallestPresent (maybeSnap d l sxl) (maybeSnap d r sxh)
-      oy = smallestPresent (maybeSnap d t syl) (maybeSnap d b syh)
-      offset = traceShowId (ox, oy)
-      offset4 = offset `mul4` mask
-  in boundsAdd4 bs offset4
-
--- todo return 4 ints, use add4
+      snapl = maybeSnap d l sxl
+      snapr = maybeSnap d r sxh
+      snapt = maybeSnap d t syl
+      snapb = maybeSnap d b syh
+      offset = if fixSize
+               then let x = smallestPresent snapl snapr
+                        y = smallestPresent snapt snapb
+                    in (x, x, y, y)
+               else ( fromMaybe 0 snapl , fromMaybe 0 snapr
+                    , fromMaybe 0 snapt , fromMaybe 0 snapb )
+  in boundsAdd4 bs offset
 
 -- | Finds the smallest of two values.
 smallestPresent :: Maybe Integer -> Maybe Integer -> Integer
