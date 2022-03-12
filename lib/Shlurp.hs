@@ -40,6 +40,7 @@ data Ev
   | EvWasUnmapped WinId
   | EvWantsMap Win
   | EvWasResized WinId Bounds
+  | EvWasDestroyed WinId
   | EvFocusIn WinId
   | EvMouseEntered WinId
   | EvDragStart WinId Integer Integer
@@ -119,6 +120,11 @@ handleEvent (EvWantsMap w) wm0 =
   in (addWindow w wm0, [ReqManage wid, ReqMap wid])
 
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
+
+handleEvent (EvWasDestroyed wid) wm0 =
+  let ws0 = wmWindows wm0
+      ws1 = filter (\w -> winId w /= wid) ws0
+  in (wm0 { wmWindows = ws1 }, [])
 
 handleEvent (EvMouseEntered wid) wm0 =
   (wm0, if wmFocused wm0 == Just wid then [] else [ReqFocus wid])

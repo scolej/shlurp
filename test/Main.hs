@@ -45,6 +45,16 @@ mapsWindow =
         , "no further requests" ~: cs2 ~?= []
         ]
 
+windowDestroyed :: Test
+windowDestroyed =
+  let wm0 = wmTwoWindows
+      (wm1, cs1) = handleEvent (EvWasDestroyed wid0) wm0
+  in "window desroyed" ~:
+        [ "window is gone" ~: findWindow wm1 wid0 ~?= Nothing
+        , "no further requests" ~: cs1 ~?= []
+        -- todo focus?
+        ]
+
 focusFollowsMouse1 :: Test
 focusFollowsMouse1 =
   let wm0 = wmTwoWindows
@@ -216,6 +226,7 @@ windowResized =
 allTests :: Test
 allTests =
   TestList [ mapsWindow
+           , windowDestroyed
            , focusFollowsMouse1
            , focusFollowsMouse2
            , dragMove

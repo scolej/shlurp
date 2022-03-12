@@ -10,7 +10,6 @@ import Graphics.X11.Xlib.Types
 import Graphics.X11.Xlib.Window
 import Data.Bits
 import System.IO
-import Control.Monad
 import Foreign.C.Types
 
 import Shlurp
@@ -45,7 +44,7 @@ main = do
            }
       conf = wcDefault
              { wcSnapDist = 10
-             , wcSnapGap = 2
+             , wcSnapGap = 1
              , wcBorderWidth = 1
              }
       wm0 = wmBlankState { wmConf = conf }
@@ -57,9 +56,9 @@ main = do
 transformBounds :: CInt -> CInt -> CInt -> CInt -> CInt -> Bounds
 transformBounds x y w h bw =
         Bounds { boundsL = fromIntegral x
-               , boundsR = fromIntegral $ x + w + 2 * bw
+               , boundsR = fromIntegral $ x + w + 2 * bw - 1
                , boundsT = fromIntegral y
-               , boundsB = fromIntegral $ y + h + 2 * bw
+               , boundsB = fromIntegral $ y + h + 2 * bw - 1
                }
 
 convertEvent :: WmReadOnly -> Event -> IO (Maybe Ev)
@@ -76,6 +75,9 @@ convertEvent ro MapRequestEvent {ev_window = w} = do
 
 convertEvent _ MapNotifyEvent {ev_window = w} =
   return $ Just (EvWasMapped w)
+
+convertEvent _ DestroyWindowEvent {ev_window = w} =
+  return $ Just (EvWasDestroyed w)
 
 convertEvent _ CrossingEvent { ev_window = w } =
   return $ Just (EvMouseEntered w)

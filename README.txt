@@ -9,6 +9,10 @@ handle window destroy
 
 discover existing windows on start
 
+close windows
+
+launch progs
+
 add screen bounds to snap bounds
 
 ensure adapt to screen resize
