@@ -31,6 +31,9 @@ boundsAdd4 :: Bounds -> (Integer, Integer, Integer, Integer) -> Bounds
 boundsAdd4 (Bounds l r t b) (dl, dr, dt, db) =
   Bounds (l + dl) (r + dr) (t + dt) (b + db)
 
+mul4 :: (Integer, Integer) -> (Integer, Integer, Integer, Integer) -> (Integer, Integer, Integer, Integer)
+mul4 (x, y) (l, r, t, b) = (x * l, x * r, y * t, y * b)
+
 data Ev
   = EvWasMapped WinId
   | EvWasUnmapped WinId
@@ -145,7 +148,7 @@ handleEvent (EvDragMove x y) wm0 =
     Just (DragResize wid x0 y0 hand origBounds) ->
       let dx = x - x0
           dy = y - y0
-          (sl, sr, st, sb) =
+          mask@(sl, sr, st, sb) =
             case hand of
               ResizeHandle HL HL -> (1, 0, 1, 0)
               ResizeHandle HL HM -> (1, 0, 0, 0)
@@ -160,7 +163,7 @@ handleEvent (EvDragMove x y) wm0 =
           newBounds = origBounds `boundsAdd4` delta4
           otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
           otherBounds = map winBounds otherWins -- todo add screen bounds
-          snappedBounds = snapBounds (wmConf wm0) otherBounds newBounds
+          snappedBounds = snapBounds (wmConf wm0) otherBounds mask newBounds
       in (wm0, [ReqResize wid snappedBounds])
     Nothing -> (wm0, [])
 
@@ -259,11 +262,13 @@ snapBounds
   -- ^ window manager configuration
   -> [Bounds]
   -- ^ bounds to which we might snap
+  -> (Integer, Integer, Integer, Integer)
+  -- ^ edge mask, l r t b, which we may snap
   -> Bounds
   -- ^ bounds to snap
   -> Bounds
   -- ^ potentially snapped bounds or the original bounds unchanged
-snapBounds wc otherBounds bs@(Bounds l r t b) =
+snapBounds wc otherBounds mask bs@(Bounds l r t b) =
   let d = wcSnapDist wc
       g = wcSnapGap wc
       (sxl, syl) = snapStopsL g otherBounds
@@ -271,7 +276,8 @@ snapBounds wc otherBounds bs@(Bounds l r t b) =
       ox = smallestPresent (maybeSnap d l sxl) (maybeSnap d r sxh)
       oy = smallestPresent (maybeSnap d t syl) (maybeSnap d b syh)
       offset = traceShowId (ox, oy)
-  in boundsAdd bs offset
+      offset4 = offset `mul4` mask
+  in boundsAdd4 bs offset4
 
 -- todo return 4 ints, use add4
 
