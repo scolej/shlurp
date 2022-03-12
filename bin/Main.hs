@@ -25,8 +25,11 @@ main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   putStrLn "starting..."
+
   d <- openDisplay "" -- todo use env
+
   let root = defaultRootWindow d
+
   selectInput d root
     ( substructureRedirectMask
       .|. substructureNotifyMask )
@@ -47,7 +50,16 @@ main = do
              , wcSnapGap = 1
              , wcBorderWidth = 1
              }
-      wm0 = wmBlankState { wmConf = conf }
+
+  (_, _, existingWindows) <- queryTree d root
+  mapM_ (manageNewWindow conf ro) existingWindows
+  ws <- mapM (newWindow d) existingWindows
+
+  let wm0 = wmBlankState
+            { wmConf = conf
+            , wmWindows = ws
+            }
+
   _ <- handleEventsForever ro wm0
   closeDisplay d
 
@@ -61,17 +73,21 @@ transformBounds x y w h bw =
                , boundsB = fromIntegral $ y + h + 2 * bw - 1
                }
 
-convertEvent :: WmReadOnly -> Event -> IO (Maybe Ev)
-convertEvent ro MapRequestEvent {ev_window = w} = do
-  let d = roDisplay ro
+newWindow :: Display -> WinId -> IO Win
+newWindow d w = do
   attr <- getWindowAttributes d w
   let bounds = transformBounds (wa_x attr) (wa_y attr) (wa_width attr) (wa_height attr) (wa_border_width attr)
-  return $ Just $
-    EvWantsMap Win { winId = w
-                   , winName = "?"
-                   , winBounds = bounds
-                   , winMapped = False
-                   }
+      isMapped = wa_map_state attr == 1
+  return $ Win { winId = w
+               , winName = "?"
+               , winBounds = bounds
+               , winMapped = isMapped
+               }
+
+convertEvent :: WmReadOnly -> Event -> IO (Maybe Ev)
+convertEvent ro MapRequestEvent {ev_window = w} = do
+  win <- newWindow (roDisplay ro) w
+  return $ Just $ EvWantsMap win
 
 convertEvent _ MapNotifyEvent {ev_window = w} =
   return $ Just (EvWasMapped w)
@@ -114,6 +130,14 @@ convertEvent _ AnyEvent {ev_event_type = et, ev_window = w} = do
 
 convertEvent _ _ = return Nothing
 
+manageNewWindow :: WmConfig -> WmReadOnly -> WinId -> IO ()
+manageNewWindow wc ro wid = do
+  let d = roDisplay ro
+  selectInput d wid $ enterWindowMask .|. focusChangeMask
+  setWindowBorderWidth d wid (fromIntegral $ wcBorderWidth wc)
+  setWindowBorder d wid (roUnfocusedColour ro)
+  grabButton d button1 mod1Mask wid False buttonPressMask grabModeAsync grabModeAsync none currentTime
+
 performReqs :: WmConfig -> WmReadOnly -> [Request] -> IO ()
 performReqs wc ro = mapM_ go
   where d = roDisplay ro
@@ -122,10 +146,7 @@ performReqs wc ro = mapM_ go
           mapWindow d wid
         go (ReqManage wid) = do
           putStrLn "managing window"
-          selectInput d wid $ enterWindowMask .|. focusChangeMask
-          setWindowBorderWidth d wid (fromIntegral $ wcBorderWidth wc)
-          setWindowBorder d wid (roUnfocusedColour ro)
-          grabButton d button1 mod1Mask wid False buttonPressMask grabModeAsync grabModeAsync none currentTime
+          manageNewWindow wc ro wid
         go (ReqFocus wid) = do
           putStrLn "requesting focus"
           setInputFocus d wid revertToParent currentTime
@@ -139,8 +160,8 @@ performReqs wc ro = mapM_ go
           let bw = wcBorderWidth wc
               li = fromIntegral l
               ti = fromIntegral t
-              wi = fromIntegral $ r - l - 2 * bw
-              hi = fromIntegral $ b - t - 2 * bw
+              wi = fromIntegral $ r - l - 2 * bw + 1
+              hi = fromIntegral $ b - t - 2 * bw + 1
           moveResizeWindow d wid li ti wi hi
         go r = do
           putStrLn $ "unhandled request " ++ show r
@@ -154,6 +175,7 @@ handleOneEvent ro event wm0 = do
       let (wm1, reqs) = handleEvent ev wm0
       performReqs (wmConf wm0) ro reqs
       showWindowBounds wm1
+      print (wmDragResize wm1)
       return wm1
     Nothing -> do
       putStrLn $ "unhandled event " ++ show event

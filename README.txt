@@ -5,10 +5,6 @@ TODO
 must haves
 ----------
 
-handle window destroy
-
-discover existing windows on start
-
 close windows
 
 launch progs

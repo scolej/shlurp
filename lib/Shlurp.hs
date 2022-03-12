@@ -70,6 +70,7 @@ data DragResize
   , drHandleClicked :: ResizeHandle -- ^ which part of the window handle was clicked
   , drInitBounds :: Bounds -- ^ initial window bounds
   }
+  deriving (Show)
 
 data WmState =
   WmState
@@ -207,11 +208,11 @@ setMapped wid wm0 =
 
 -- | Handles: low, middle and high.
 data CoHandle = HL | HM | HH
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- | Two co-handles specify one of 9 resize handles.
 data ResizeHandle = ResizeHandle CoHandle CoHandle
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- | Decide which part of the window has been gripped based on its bounds,
 -- the handle ratio, and the group position.
