@@ -78,6 +78,7 @@ data WmState =
   , wmFocused :: Maybe WinId -- ^ id of the focused window
   , wmDragResize :: Maybe DragResize -- ^ current drag-resize state
   , wmConf :: WmConfig -- ^ configuration
+  , wmScreenBounds :: [Bounds] -- ^ screen bounds
   }
 
 data WmConfig =
@@ -104,6 +105,7 @@ wmBlankState =
   , wmFocused = Nothing
   , wmDragResize = Nothing
   , wmConf = wcDefault
+  , wmScreenBounds = []
   }
 
 findWindow :: WmState -> WinId -> Maybe Win
@@ -170,7 +172,8 @@ handleEvent (EvDragMove x y) wm0 =
           delta4 = (sl * dx, sr * dx, st * dy, sb * dy)
           newBounds = origBounds `boundsAdd4` delta4
           otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
-          otherBounds = map winBounds otherWins -- todo add screen bounds
+          otherBounds =
+            map winBounds otherWins ++ wmScreenBounds wm0
           snappedBounds = snapBounds (wmConf wm0) otherBounds (hand == ResizeHandle HM HM) newBounds
       in (wm0, [ReqResize wid snappedBounds])
     Nothing -> (wm0, [])

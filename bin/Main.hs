@@ -1,6 +1,9 @@
 module Main where
 
+import Data.Bits
+import Foreign.C.Types
 import Graphics.X11.Types
+import Graphics.X11.Xinerama
 import Graphics.X11.Xlib.Color
 import Graphics.X11.Xlib.Display
 import Graphics.X11.Xlib.Event
@@ -8,9 +11,7 @@ import Graphics.X11.Xlib.Extras
 import Graphics.X11.Xlib.Misc
 import Graphics.X11.Xlib.Types
 import Graphics.X11.Xlib.Window
-import Data.Bits
 import System.IO
-import Foreign.C.Types
 
 import Shlurp
 
@@ -55,13 +56,24 @@ main = do
   mapM_ (manageNewWindow conf ro) existingWindows
   ws <- mapM (newWindow d) existingWindows
 
+  screenBounds <- map rect2bounds <$> getScreenInfo d
+
   let wm0 = wmBlankState
             { wmConf = conf
             , wmWindows = ws
+            , wmScreenBounds = screenBounds
             }
 
   _ <- handleEventsForever ro wm0
   closeDisplay d
+
+rect2bounds :: Rectangle -> Bounds
+rect2bounds rect =
+  let l = fromIntegral (rect_x rect)
+      t = fromIntegral (rect_y rect)
+      r = l + fromIntegral (rect_width rect) - 1
+      b = t + fromIntegral (rect_height rect) - 1
+  in Bounds l r t b
 
 -- | Convert X's picture of window position to our idea of bounds.
 -- X's window width/height does not include the border width.

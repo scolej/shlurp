@@ -102,17 +102,6 @@ mappedWinAt wid bs =
       , winMapped = True
       }
 
--- TODO
---
--- snap cases
--- grows out to meet opposing edge
--- grows to overlap same edge
---
--- add conf for
--- snap distance
--- snap gap
---
-
 -- The window's width & height as reported by X do not include the border
 -- width. But the x & y position specify the top left position of the start
 -- of the border. So on-screen, the window occupies a rectangle starting
@@ -120,7 +109,6 @@ mappedWinAt wid bs =
 -- width.
 --
 -- But let's keep this shitty situation outside our garden.
-
 
 -- | Makes a drag move/resize test case.
 dragMoveResizeTest
@@ -177,6 +165,8 @@ snap3Wins =
      [ "window snaps to two opposing edges from different windows"
        ~: dragMoveResizeTest wm0 w1 (30, 110) (430, 280) (Bounds 403 423 253 273)
      ]
+
+-- todo screen bounds snap
 
 resizeAWindow :: Test
 resizeAWindow =
