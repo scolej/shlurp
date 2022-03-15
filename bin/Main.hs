@@ -1,6 +1,7 @@
 module Main where
 
 import Data.Bits
+import Control.Monad
 import Foreign.C.Types
 import Graphics.X11.Types
 import Graphics.X11.Xinerama
@@ -15,12 +16,30 @@ import System.IO
 
 import Shlurp
 
+-- | Information we determine a single time at startup and then carry
+-- around for the rest of the program.
 data WmReadOnly =
   WmReadOnly { roDisplay :: Display
              , roRoot :: Window
              , roFocusedColour :: Pixel
              , roUnfocusedColour :: Pixel
              }
+
+-- | State we use for keeping track of what we're doing with X and how it
+-- might impact how we translate events for Shlurp.
+data XState =
+  XState { xsDragState :: XDragState
+         }
+
+-- | Stages of drag.
+data XDragState
+  = NoDrag -- ^ there is no drag state at all
+  | NascentDrag WinId Integer Integer -- ^ the mouse button is pressed at some x & y (not yet released), this might become a drag, but it might just be a click
+  | DragInProgress -- ^ mouse button is down and mouse is moving around, drag is active!
+
+xInitState :: XState
+xInitState =
+  XState { xsDragState = NoDrag }
 
 main :: IO ()
 main = do
@@ -64,7 +83,7 @@ main = do
             , wmScreenBounds = screenBounds
             }
 
-  _ <- handleEventsForever ro wm0
+  _ <- handleEventsForever ro xInitState wm0
   closeDisplay d
 
 rect2bounds :: Rectangle -> Bounds
@@ -96,51 +115,72 @@ newWindow d w = do
                , winMapped = isMapped
                }
 
-convertEvent :: WmReadOnly -> Event -> IO (Maybe Ev)
-convertEvent ro MapRequestEvent {ev_window = w} = do
-  win <- newWindow (roDisplay ro) w
-  return $ Just $ EvWantsMap win
+mag :: (Integer, Integer) -> (Integer, Integer) -> Float
+mag (x0, y0) (x1, y1) =
+  let x = x1 - x0
+      y = y1 - y0
+  in sqrt $ fromIntegral $ x * x + y * y
 
-convertEvent _ MapNotifyEvent {ev_window = w} =
-  return $ Just (EvWasMapped w)
-
-convertEvent _ DestroyWindowEvent {ev_window = w} =
-  return $ Just (EvWasDestroyed w)
-
-convertEvent _ CrossingEvent { ev_window = w } =
-  return $ Just (EvMouseEntered w)
-
-convertEvent _ MotionEvent { ev_x = x, ev_y = y} =
-  return $ Just (EvDragMove (fromIntegral x) (fromIntegral y))
-
-convertEvent _ ConfigureEvent { ev_window = win, ev_x = x, ev_y = y, ev_width = w, ev_height = h, ev_border_width = bw } =
-  return $ Just $ EvWasResized win $ transformBounds x y w h bw
-
--- todo destroy window
-
+-- | Converts an X event to our internal event type.
 -- todo smelly; method is called convert but it does grabs
+convertEvent :: WmReadOnly -> XState -> Event -> IO ([Ev], XState)
+
+convertEvent ro xstate MapRequestEvent {ev_window = w} = do
+  win <- newWindow (roDisplay ro) w
+  return ([EvWantsMap win], xstate)
+
+convertEvent _ xstate MapNotifyEvent {ev_window = w} =
+  return ([EvWasMapped w], xstate)
+
+convertEvent _ xstate DestroyWindowEvent {ev_window = w} =
+  return ([EvWasDestroyed w], xstate)
+
+convertEvent _ xstate CrossingEvent { ev_window = w } =
+  return ([EvMouseEntered w], xstate)
+
+convertEvent _ xstate@XState { xsDragState = dragState } MotionEvent { ev_x = ex, ev_y = ey} =
+  let x = fromIntegral ex
+      y = fromIntegral ey
+  in return $ case dragState of
+    NascentDrag win x0 y0 ->
+      if mag (x0, y0) (x, y) > 10
+      then ([EvDragStart win x0 y0], xstate { xsDragState = DragInProgress })
+      else ([EvDragMove x y], xstate)
+    _ -> ([], xstate)
+
+convertEvent _ xstate ConfigureEvent { ev_window = win, ev_x = x, ev_y = y, ev_width = w, ev_height = h, ev_border_width = bw } =
+  return ([EvWasResized win $ transformBounds x y w h bw], xstate)
 
 -- todo click and no drag should raise
 -- click and drag should not raise
 
 convertEvent
   WmReadOnly { roDisplay = d , roRoot = r }
+  xstate@XState { xsDragState = dragState }
   ButtonEvent { ev_window = w, ev_event_type = et, ev_x_root = x, ev_y_root = y }
   | et == buttonPress = do
     let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
     _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
-    return $ Just (EvDragStart w (fromIntegral x) (fromIntegral y))
+    putStrLn "start drag"
+    return ( []
+           , xstate { xsDragState = NascentDrag w (fromIntegral x) (fromIntegral y) }
+           )
   | et == buttonRelease = do
     ungrabPointer d currentTime
-    return $ Just EvDragFinish
-  | otherwise = return Nothing
+    case dragState of
+      DragInProgress ->
+           return ( [EvDragFinish]
+                  , xstate { xsDragState = NoDrag }
+                  )
+      _ -> return ([], xstate)
+  | otherwise = return ([], xstate)
 
-convertEvent _ AnyEvent {ev_event_type = et, ev_window = w} = do
+convertEvent _ xstate AnyEvent {ev_event_type = et, ev_window = w} = do
   if et == focusIn
-    then return $ Just (EvFocusIn w)
-    else return Nothing
+    then return $ ([EvFocusIn w], xstate)
+    else return ([], xstate)
 
-convertEvent _ _ = return Nothing
+convertEvent _ xstate _ = return ([], xstate)
 
 manageNewWindow :: WmConfig -> WmReadOnly -> WinId -> IO ()
 manageNewWindow wc ro wid = do
@@ -178,27 +218,23 @@ performReqs wc ro = mapM_ go
         go r = do
           putStrLn $ "unhandled request " ++ show r
 
-handleOneEvent :: WmReadOnly -> Event -> WmState -> IO WmState
-handleOneEvent ro event wm0 = do
-  mev <- convertEvent ro event
-  case mev of
-    Just ev -> do
-      putStrLn $ "event " ++ show event ++ " converted to " ++ show ev
+handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
+handleOneEvent ro xstate0 event wm0 = do
+  (es, xstate1) <- convertEvent ro xstate0 event
+  -- todo extract io?
+  let go wm0 ev = do
       let (wm1, reqs) = handleEvent ev wm0
       performReqs (wmConf wm0) ro reqs
-      showWindowBounds wm1
-      print (wmDragResize wm1)
       return wm1
-    Nothing -> do
-      putStrLn $ "unhandled event " ++ show event
-      return wm0
+  wm1 <- foldM go wm0 es
+  return (wm1, xstate1)
 
-handleEventsForever :: WmReadOnly -> WmState -> IO WmState
-handleEventsForever ro wm0 = do
+handleEventsForever :: WmReadOnly -> XState -> WmState -> IO (WmState, XState)
+handleEventsForever ro xstate0 wm0 = do
   let d = roDisplay ro
   ev <- allocaXEvent (\ep -> nextEvent d ep >> getEvent ep)
-  wm1 <- handleOneEvent ro ev wm0
-  handleEventsForever ro wm1
+  (wm1, xstate1) <- handleOneEvent ro xstate0 ev wm0
+  handleEventsForever ro xstate1 wm1
 
 showWindowBounds :: WmState -> IO ()
 showWindowBounds wm =

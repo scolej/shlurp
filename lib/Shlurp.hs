@@ -43,9 +43,13 @@ data Ev
   | EvWasDestroyed WinId
   | EvFocusIn WinId
   | EvMouseEntered WinId
+  --
   | EvDragStart WinId Integer Integer
   | EvDragMove Integer Integer
   | EvDragFinish
+  --
+  -- | EvKeyTyped Char Int -- ^ character and modifier mask
+  -- | EvMouseClick WinId Int Int Int -- ^ mouse button was pressed and released at absolute x and y
   deriving (Eq, Show)
 
 data Request
@@ -56,7 +60,7 @@ data Request
   | ReqLower WinId
   | ReqRaise WinId
   | ReqResize WinId Bounds
-  | ReqStyleFocused WinId
+  | ReqStyleFocused WinId -- ^ todo maybe should collapse to just "style"?
   | ReqStyleUnfocused WinId
   deriving (Eq, Show)
 
