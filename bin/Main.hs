@@ -138,20 +138,27 @@ convertEvent _ xstate DestroyWindowEvent {ev_window = w} =
 convertEvent _ xstate CrossingEvent { ev_window = w } =
   return ([EvMouseEntered w], xstate)
 
-convertEvent _ xstate@XState { xsDragState = dragState } MotionEvent { ev_x = ex, ev_y = ey} =
+convertEvent
+  _ xstate@XState { xsDragState = dragState }
+  MotionEvent { ev_x = ex, ev_y = ey} =
   let x = fromIntegral ex
       y = fromIntegral ey
   in return $ case dragState of
     NascentDrag win x0 y0 ->
-      if True -- mag (x0, y0) (x, y) > 5
+      if mag (x0, y0) (x, y) > 5 -- todo configurable drag dist threshold
       then ( [ EvDragStart win x0 y0
              , EvDragMove x y
              ]
            , xstate { xsDragState = DragInProgress })
       else ([EvDragMove x y], xstate)
+    DragInProgress -> ([EvDragMove x y], xstate)
     _ -> ([], xstate)
 
-convertEvent _ xstate ConfigureEvent { ev_window = win, ev_x = x, ev_y = y, ev_width = w, ev_height = h, ev_border_width = bw } =
+convertEvent _ xstate
+  ConfigureEvent { ev_window = win,
+                   ev_x = x, ev_y = y,
+                   ev_width = w, ev_height = h,
+                   ev_border_width = bw } =
   return ([EvWasResized win $ transformBounds x y w h bw], xstate)
 
 -- todo click and no drag should raise
@@ -160,9 +167,9 @@ convertEvent _ xstate ConfigureEvent { ev_window = win, ev_x = x, ev_y = y, ev_w
 convertEvent
   WmReadOnly { roDisplay = d , roRoot = r }
   xstate@XState { xsDragState = dragState }
-  ButtonEvent { ev_window = w, ev_event_type = et, ev_x_root = x, ev_y_root = y }
+  ButtonEvent { ev_window = w, ev_event_type = et,
+                ev_x_root = x, ev_y_root = y }
   | et == buttonPress = do
-    putStrLn "start drag"
     let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
     _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
     return ( []
@@ -176,7 +183,9 @@ convertEvent
                   , xstate { xsDragState = NoDrag }
                   )
       _ -> return ([], xstate)
-  | otherwise = return ([], xstate)
+  | otherwise = do
+      putStrLn "nothing for this click"
+      return ([], xstate)
 
 convertEvent _ xstate AnyEvent {ev_event_type = et, ev_window = w} = do
   if et == focusIn
@@ -240,7 +249,7 @@ handleEventsForever :: WmReadOnly -> XState -> WmState -> IO (WmState, XState)
 handleEventsForever ro xstate0 wm0 = do
   let d = roDisplay ro
   ev <- allocaXEvent (\ep -> nextEvent d ep >> getEvent ep)
-  putStrLn $ unwords ["got event", show ev]
+  -- putStrLn $ unwords ["got event", show ev]
   (wm1, xstate1) <- handleOneEvent ro xstate0 ev wm0
   handleEventsForever ro xstate1 wm1
 

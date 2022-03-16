@@ -133,8 +133,11 @@ handleEvent (EvWasDestroyed wid) wm0 =
       ws1 = filter (\w -> winId w /= wid) ws0
   in (wm0 { wmWindows = ws1 }, [])
 
+-- todo it would be nice not to have to do this is focus is already on the
+-- window which was entered. but if the window has focus when we start up
+-- but haven't got that into our state yet it all breaks...
 handleEvent (EvMouseEntered wid) wm0 =
-  (wm0, if wmFocused wm0 == Just wid then [] else [ReqFocus wid])
+  (wm0, [ReqFocus wid])
 
 handleEvent (EvFocusIn wid) wm0 =
   let maybePrevWid = wmFocused wm0
