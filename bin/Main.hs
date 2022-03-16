@@ -143,8 +143,11 @@ convertEvent _ xstate@XState { xsDragState = dragState } MotionEvent { ev_x = ex
       y = fromIntegral ey
   in return $ case dragState of
     NascentDrag win x0 y0 ->
-      if mag (x0, y0) (x, y) > 10
-      then ([EvDragStart win x0 y0], xstate { xsDragState = DragInProgress })
+      if True -- mag (x0, y0) (x, y) > 5
+      then ( [ EvDragStart win x0 y0
+             , EvDragMove x y
+             ]
+           , xstate { xsDragState = DragInProgress })
       else ([EvDragMove x y], xstate)
     _ -> ([], xstate)
 
@@ -159,9 +162,9 @@ convertEvent
   xstate@XState { xsDragState = dragState }
   ButtonEvent { ev_window = w, ev_event_type = et, ev_x_root = x, ev_y_root = y }
   | et == buttonPress = do
+    putStrLn "start drag"
     let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
     _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
-    putStrLn "start drag"
     return ( []
            , xstate { xsDragState = NascentDrag w (fromIntegral x) (fromIntegral y) }
            )
@@ -177,18 +180,21 @@ convertEvent
 
 convertEvent _ xstate AnyEvent {ev_event_type = et, ev_window = w} = do
   if et == focusIn
-    then return $ ([EvFocusIn w], xstate)
+    then return ([EvFocusIn w], xstate)
     else return ([], xstate)
 
-convertEvent _ xstate _ = return ([], xstate)
+convertEvent _ xstate ev = do
+  putStrLn $ unwords ["converted", show ev, "to nothing"]
+  return ([], xstate)
 
 manageNewWindow :: WmConfig -> WmReadOnly -> WinId -> IO ()
 manageNewWindow wc ro wid = do
   let d = roDisplay ro
-  selectInput d wid $ enterWindowMask .|. focusChangeMask
   setWindowBorderWidth d wid (fromIntegral $ wcBorderWidth wc)
   setWindowBorder d wid (roUnfocusedColour ro)
+  selectInput d wid $ enterWindowMask .|. focusChangeMask
   grabButton d button1 mod1Mask wid False buttonPressMask grabModeAsync grabModeAsync none currentTime
+  putStrLn $ unwords ["managed window", show wid]
 
 performReqs :: WmConfig -> WmReadOnly -> [Request] -> IO ()
 performReqs wc ro = mapM_ go
@@ -221,6 +227,7 @@ performReqs wc ro = mapM_ go
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do
   (es, xstate1) <- convertEvent ro xstate0 event
+  putStrLn $ unwords ["mapped", show event, "to", show es]
   -- todo extract io?
   let go wm0 ev = do
       let (wm1, reqs) = handleEvent ev wm0
@@ -233,6 +240,7 @@ handleEventsForever :: WmReadOnly -> XState -> WmState -> IO (WmState, XState)
 handleEventsForever ro xstate0 wm0 = do
   let d = roDisplay ro
   ev <- allocaXEvent (\ep -> nextEvent d ep >> getEvent ep)
+  putStrLn $ unwords ["got event", show ev]
   (wm1, xstate1) <- handleOneEvent ro xstate0 ev wm0
   handleEventsForever ro xstate1 wm1
 
