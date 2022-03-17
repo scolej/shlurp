@@ -48,6 +48,8 @@ data Ev
   | EvDragMove Integer Integer
   | EvDragFinish
   --
+  | EvMouseClicked WinId
+  --
   -- | EvKeyTyped Char Int -- ^ character and modifier mask
   -- | EvMouseClick WinId Int Int Int -- ^ mouse button was pressed and released at absolute x and y
   deriving (Eq, Show)
@@ -194,6 +196,8 @@ handleEvent (EvWasResized wid bounds) wm0 =
             else w
       wm1 = wm0 { wmWindows = map u ws0 }
   in (wm1, [])
+
+handleEvent (EvMouseClicked wid) wm0 = (wm0, [ReqRaise wid])
 
 handleEvent _ _ = undefined
 

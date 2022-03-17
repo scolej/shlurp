@@ -55,6 +55,10 @@ main = do
       .|. substructureNotifyMask )
   xSetErrorHandler
 
+  (grabButton d anyButton mod1Mask root False
+    (buttonPressMask .|. buttonReleaseMask .|. button1MotionMask)
+    grabModeAsync grabModeAsync none currentTime)
+
   let cm = defaultColormap d (defaultScreen d)
   red <- color_pixel . fst <$> allocNamedColor d cm "#ff0000"
   grey <- color_pixel . fst <$> allocNamedColor d cm "#333333"
@@ -140,10 +144,11 @@ convertEvent _ xstate CrossingEvent { ev_window = w } =
 
 convertEvent
   _ xstate@XState { xsDragState = dragState }
-  MotionEvent { ev_x = ex, ev_y = ey} =
+  MotionEvent { ev_x = ex, ev_y = ey} = do
   let x = fromIntegral ex
       y = fromIntegral ey
-  in return $ case dragState of
+  putStrLn "motion event"
+  return $ case dragState of
     NascentDrag win x0 y0 ->
       if mag (x0, y0) (x, y) > 5 -- todo configurable drag dist threshold
       then ( [ EvDragStart win x0 y0
@@ -167,22 +172,26 @@ convertEvent _ xstate
 convertEvent
   WmReadOnly { roDisplay = d , roRoot = r }
   xstate@XState { xsDragState = dragState }
-  ButtonEvent { ev_window = w, ev_event_type = et,
+  ButtonEvent { ev_subwindow = w, ev_event_type = et,
                 ev_x_root = x, ev_y_root = y }
   | et == buttonPress = do
-    let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
-    _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
-    return ( []
-           , xstate { xsDragState = NascentDrag w (fromIntegral x) (fromIntegral y) }
-           )
+      putStrLn "button press"
+      let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
+      _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
+      return ( []
+             , xstate { xsDragState = NascentDrag w (fromIntegral x) (fromIntegral y) }
+             )
   | et == buttonRelease = do
-    ungrabPointer d currentTime
-    case dragState of
-      DragInProgress ->
-           return ( [EvDragFinish]
-                  , xstate { xsDragState = NoDrag }
-                  )
-      _ -> return ([], xstate)
+      putStrLn "button release"
+      ungrabPointer d currentTime
+      case dragState of
+        DragInProgress ->
+          return ( [EvDragFinish]
+                 , xstate { xsDragState = NoDrag }
+                 )
+        _ -> do
+          putStrLn $ unwords ["regular click on", show w]
+          return ([EvMouseClicked w], xstate { xsDragState = NoDrag })
   | otherwise = do
       putStrLn "nothing for this click"
       return ([], xstate)
@@ -196,13 +205,13 @@ convertEvent _ xstate ev = do
   putStrLn $ unwords ["converted", show ev, "to nothing"]
   return ([], xstate)
 
+-- todo why does it seem that this sometimes fails???
 manageNewWindow :: WmConfig -> WmReadOnly -> WinId -> IO ()
 manageNewWindow wc ro wid = do
   let d = roDisplay ro
   setWindowBorderWidth d wid (fromIntegral $ wcBorderWidth wc)
   setWindowBorder d wid (roUnfocusedColour ro)
   selectInput d wid $ enterWindowMask .|. focusChangeMask
-  grabButton d button1 mod1Mask wid False buttonPressMask grabModeAsync grabModeAsync none currentTime
   putStrLn $ unwords ["managed window", show wid]
 
 performReqs :: WmConfig -> WmReadOnly -> [Request] -> IO ()
@@ -223,6 +232,9 @@ performReqs wc ro = mapM_ go
         go (ReqStyleUnfocused wid) = do
           putStrLn "styling as un-focused"
           setWindowBorder d wid (roUnfocusedColour ro)
+        go (ReqRaise wid) = do
+          raiseWindow d wid
+          putStrLn $ unwords ["raising", show wid]
         go (ReqResize wid (Bounds l r t b)) = do
           let bw = wcBorderWidth wc
               li = fromIntegral l
@@ -236,7 +248,7 @@ performReqs wc ro = mapM_ go
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do
   (es, xstate1) <- convertEvent ro xstate0 event
-  putStrLn $ unwords ["mapped", show event, "to", show es]
+  -- putStrLn $ unwords ["mapped", show event, "to", show es]
   -- todo extract io?
   let go wm0 ev = do
       let (wm1, reqs) = handleEvent ev wm0
