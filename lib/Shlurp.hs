@@ -47,12 +47,13 @@ data Ev
   | EvDragStart WinId Integer Integer
   | EvDragMove Integer Integer
   | EvDragFinish
-  --
   | EvMouseClicked WinId
-  --
-  -- | EvKeyTyped Char Int -- ^ character and modifier mask
-  -- | EvMouseClick WinId Int Int Int -- ^ mouse button was pressed and released at absolute x and y
+  | EvMouse2Clicked WinId
   deriving (Eq, Show)
+
+--
+-- EvKeyTyped Char Int -- ^ character and modifier mask
+-- EvMouseClick WinId Int Int Int -- ^ mouse button was pressed and released at absolute x and y
 
 data Request
   = ReqFocus WinId
@@ -198,6 +199,8 @@ handleEvent (EvWasResized wid bounds) wm0 =
   in (wm1, [])
 
 handleEvent (EvMouseClicked wid) wm0 = (wm0, [ReqRaise wid])
+
+handleEvent (EvMouse2Clicked wid) wm0 = (wm0, [ReqLower wid])
 
 handleEvent _ _ = undefined
 

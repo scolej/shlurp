@@ -19,17 +19,16 @@ import Shlurp
 -- | Information we determine a single time at startup and then carry
 -- around for the rest of the program.
 data WmReadOnly =
-  WmReadOnly { roDisplay :: Display
-             , roRoot :: Window
-             , roFocusedColour :: Pixel
-             , roUnfocusedColour :: Pixel
-             }
+  WmReadOnly
+  { roDisplay :: Display
+  , roRoot :: Window
+  , roFocusedColour :: Pixel
+  , roUnfocusedColour :: Pixel
+  }
 
 -- | State we use for keeping track of what we're doing with X and how it
 -- might impact how we translate events for Shlurp.
-data XState =
-  XState { xsDragState :: XDragState
-         }
+data XState = XState { xsDragState :: XDragState }
 
 -- | Stages of drag.
 data XDragState
@@ -46,14 +45,15 @@ main = do
   hSetBuffering stdout LineBuffering
   putStrLn "starting..."
 
-  d <- openDisplay "" -- todo use env
+  setDefaultErrorHandler
+
+  d <- openDisplay "" -- todo do we need to use env var?
 
   let root = defaultRootWindow d
 
   selectInput d root
     ( substructureRedirectMask
       .|. substructureNotifyMask )
-  xSetErrorHandler
 
   (grabButton d anyButton mod1Mask root False
     (buttonPressMask .|. buttonReleaseMask .|. button1MotionMask)
@@ -147,7 +147,6 @@ convertEvent
   MotionEvent { ev_x = ex, ev_y = ey} = do
   let x = fromIntegral ex
       y = fromIntegral ey
-  putStrLn "motion event"
   return $ case dragState of
     NascentDrag win x0 y0 ->
       if mag (x0, y0) (x, y) > 5 -- todo configurable drag dist threshold
@@ -166,23 +165,19 @@ convertEvent _ xstate
                    ev_border_width = bw } =
   return ([EvWasResized win $ transformBounds x y w h bw], xstate)
 
--- todo click and no drag should raise
--- click and drag should not raise
-
 convertEvent
   WmReadOnly { roDisplay = d , roRoot = r }
   xstate@XState { xsDragState = dragState }
   ButtonEvent { ev_subwindow = w, ev_event_type = et,
-                ev_x_root = x, ev_y_root = y }
-  | et == buttonPress = do
-      putStrLn "button press"
+                ev_x_root = x, ev_y_root = y,
+                ev_button = but }
+  | et == buttonPress && but == button1 = do
       let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
       _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
       return ( []
              , xstate { xsDragState = NascentDrag w (fromIntegral x) (fromIntegral y) }
              )
-  | et == buttonRelease = do
-      putStrLn "button release"
+  | et == buttonRelease && but == button1 = do
       ungrabPointer d currentTime
       case dragState of
         DragInProgress ->
@@ -190,8 +185,9 @@ convertEvent
                  , xstate { xsDragState = NoDrag }
                  )
         _ -> do
-          putStrLn $ unwords ["regular click on", show w]
           return ([EvMouseClicked w], xstate { xsDragState = NoDrag })
+  | et == buttonRelease && but == button3 = do
+      return ([EvMouse2Clicked w], xstate)
   | otherwise = do
       putStrLn "nothing for this click"
       return ([], xstate)
@@ -212,43 +208,29 @@ manageNewWindow wc ro wid = do
   setWindowBorderWidth d wid (fromIntegral $ wcBorderWidth wc)
   setWindowBorder d wid (roUnfocusedColour ro)
   selectInput d wid $ enterWindowMask .|. focusChangeMask
-  putStrLn $ unwords ["managed window", show wid]
 
 performReqs :: WmConfig -> WmReadOnly -> [Request] -> IO ()
 performReqs wc ro = mapM_ go
   where d = roDisplay ro
-        go (ReqMap wid) = do
-          putStrLn "requesting window map"
-          mapWindow d wid
-        go (ReqManage wid) = do
-          putStrLn "managing window"
-          manageNewWindow wc ro wid
-        go (ReqFocus wid) = do
-          putStrLn "requesting focus"
-          setInputFocus d wid revertToParent currentTime
-        go (ReqStyleFocused wid) = do
-          putStrLn "styling as focused"
-          setWindowBorder d wid (roFocusedColour ro)
-        go (ReqStyleUnfocused wid) = do
-          putStrLn "styling as un-focused"
-          setWindowBorder d wid (roUnfocusedColour ro)
-        go (ReqRaise wid) = do
-          raiseWindow d wid
-          putStrLn $ unwords ["raising", show wid]
-        go (ReqResize wid (Bounds l r t b)) = do
+        go (ReqMap wid) = mapWindow d wid
+        go (ReqManage wid) = manageNewWindow wc ro wid
+        go (ReqFocus wid) = setInputFocus d wid revertToParent currentTime
+        go (ReqStyleFocused wid) = setWindowBorder d wid (roFocusedColour ro)
+        go (ReqStyleUnfocused wid) = setWindowBorder d wid (roUnfocusedColour ro)
+        go (ReqRaise wid) = raiseWindow d wid
+        go (ReqLower wid) = lowerWindow d wid
+        go (ReqResize wid (Bounds l r t b)) =
           let bw = wcBorderWidth wc
               li = fromIntegral l
               ti = fromIntegral t
               wi = fromIntegral $ r - l - 2 * bw + 1
               hi = fromIntegral $ b - t - 2 * bw + 1
-          moveResizeWindow d wid li ti wi hi
-        go r = do
-          putStrLn $ "unhandled request " ++ show r
+          in moveResizeWindow d wid li ti wi hi
+        go r = putStrLn $ "unhandled request " ++ show r
 
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do
   (es, xstate1) <- convertEvent ro xstate0 event
-  -- putStrLn $ unwords ["mapped", show event, "to", show es]
   -- todo extract io?
   let go wm0 ev = do
       let (wm1, reqs) = handleEvent ev wm0
