@@ -48,6 +48,7 @@ data Ev
   | EvDragMove Integer Integer
   | EvDragFinish
   | EvMouseClicked WinId Int -- ^ mouse button clicked on window
+  | EvCmdClose WinId
   deriving (Eq, Show)
 
 --
@@ -197,10 +198,13 @@ handleEvent (EvWasResized wid bounds) wm0 =
       wm1 = wm0 { wmWindows = map u ws0 }
   in (wm1, [])
 
+-- todo this event -> action mapping does not belong here
 handleEvent (EvMouseClicked wid button) wm0
   | button == 1 = (wm0, [ReqRaise wid])
   | button == 3 = (wm0, [ReqLower wid])
   | otherwise = (wm0, [])
+
+handleEvent (EvCmdClose wid) wm0 = (wm0, [ReqClose wid])
 
 handleEvent _ _ = undefined
 

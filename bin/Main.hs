@@ -59,6 +59,10 @@ main = do
     (buttonPressMask .|. buttonReleaseMask .|. button1MotionMask)
     grabModeAsync grabModeAsync none currentTime)
 
+  -- todo paramterize mask
+  kc <- keysymToKeycode d xK_q
+  grabKey d kc mod1Mask root False grabModeAsync grabModeAsync
+
   let cm = defaultColormap d (defaultScreen d)
   red <- color_pixel . fst <$> allocNamedColor d cm "#ff0000"
   grey <- color_pixel . fst <$> allocNamedColor d cm "#333333"
@@ -126,7 +130,12 @@ mag (x0, y0) (x1, y1) =
   in sqrt $ fromIntegral $ x * x + y * y
 
 -- | Converts an X event to our internal event type.
--- todo smelly; method is called convert but it does grabs
+--
+-- todo smelly:
+--
+-- method is called convert but it does grabs
+--
+-- also, I'm pretty unsure about 1:many event mapping, seems weird
 convertEvent :: WmReadOnly -> XState -> Event -> IO ([Ev], XState)
 
 convertEvent ro xstate MapRequestEvent {ev_window = w} = do
@@ -164,6 +173,16 @@ convertEvent _ xstate
                    ev_width = w, ev_height = h,
                    ev_border_width = bw } =
   return ([EvWasResized win $ transformBounds x y w h bw], xstate)
+
+convertEvent
+  WmReadOnly { roDisplay = d } xstate
+  KeyEvent { ev_subwindow = w , ev_keycode = kc } = do
+  ks <- keycodeToKeysym d kc 0
+  let r | ks == xK_q = return ([EvCmdClose w] , xstate)
+        | otherwise = do
+            putStrLn $ unwords ["no binding for", show ks]
+            return ([] , xstate)
+  r
 
 convertEvent
   WmReadOnly { roDisplay = d , roRoot = r }
@@ -219,7 +238,7 @@ performReqs wc ro = mapM_ go
         go (ReqStyleUnfocused wid) = setWindowBorder d wid (roUnfocusedColour ro)
         go (ReqRaise wid) = raiseWindow d wid
         go (ReqLower wid) = lowerWindow d wid
-        go (ReqClose wid) = destroyWindow d wid
+        go (ReqClose wid) = destroyWindow d wid -- todo this does not seem to kill the process?
         go (ReqResize wid (Bounds l r t b)) =
           let bw = wcBorderWidth wc
               li = fromIntegral l
