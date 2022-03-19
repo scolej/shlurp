@@ -73,7 +73,7 @@ focusFollowsMouse2 =
       (wm1, cs1) = handleEvent (EvMouseEntered wid0) wm0
   in "no focus change" ~:
         [ "window 0 focused" ~: wmFocused wm0 ~?= Just wid0
-        , "no requests" ~: cs1 ~?= []
+        , "we still emit a request" ~: cs1 ~?= [ReqFocus wid0]
         , "window 0 is still focused" ~: wmFocused wm1 ~?= Just wid0
         ]
 

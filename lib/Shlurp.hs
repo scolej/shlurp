@@ -47,8 +47,7 @@ data Ev
   | EvDragStart WinId Integer Integer
   | EvDragMove Integer Integer
   | EvDragFinish
-  | EvMouseClicked WinId
-  | EvMouse2Clicked WinId
+  | EvMouseClicked WinId Int -- ^ mouse button clicked on window
   deriving (Eq, Show)
 
 --
@@ -57,7 +56,6 @@ data Ev
 
 data Request
   = ReqFocus WinId
-  | ReqUnmap WinId
   | ReqMap WinId
   | ReqManage WinId -- ^ do whatever's necessary to begin managing this window
   | ReqLower WinId
@@ -65,6 +63,7 @@ data Request
   | ReqResize WinId Bounds
   | ReqStyleFocused WinId -- ^ todo maybe should collapse to just "style"?
   | ReqStyleUnfocused WinId
+  | ReqClose WinId
   deriving (Eq, Show)
 
 -- todo there's "state tracking" and "commands"
@@ -198,9 +197,10 @@ handleEvent (EvWasResized wid bounds) wm0 =
       wm1 = wm0 { wmWindows = map u ws0 }
   in (wm1, [])
 
-handleEvent (EvMouseClicked wid) wm0 = (wm0, [ReqRaise wid])
-
-handleEvent (EvMouse2Clicked wid) wm0 = (wm0, [ReqLower wid])
+handleEvent (EvMouseClicked wid button) wm0
+  | button == 1 = (wm0, [ReqRaise wid])
+  | button == 3 = (wm0, [ReqLower wid])
+  | otherwise = (wm0, [])
 
 handleEvent _ _ = undefined
 

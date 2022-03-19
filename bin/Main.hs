@@ -185,9 +185,9 @@ convertEvent
                  , xstate { xsDragState = NoDrag }
                  )
         _ -> do
-          return ([EvMouseClicked w], xstate { xsDragState = NoDrag })
+          return ([EvMouseClicked w 1], xstate { xsDragState = NoDrag })
   | et == buttonRelease && but == button3 = do
-      return ([EvMouse2Clicked w], xstate)
+      return ([EvMouseClicked w 3], xstate)
   | otherwise = do
       putStrLn "nothing for this click"
       return ([], xstate)
@@ -219,6 +219,7 @@ performReqs wc ro = mapM_ go
         go (ReqStyleUnfocused wid) = setWindowBorder d wid (roUnfocusedColour ro)
         go (ReqRaise wid) = raiseWindow d wid
         go (ReqLower wid) = lowerWindow d wid
+        go (ReqClose wid) = destroyWindow d wid
         go (ReqResize wid (Bounds l r t b)) =
           let bw = wcBorderWidth wc
               li = fromIntegral l
@@ -226,7 +227,6 @@ performReqs wc ro = mapM_ go
               wi = fromIntegral $ r - l - 2 * bw + 1
               hi = fromIntegral $ b - t - 2 * bw + 1
           in moveResizeWindow d wid li ti wi hi
-        go r = putStrLn $ "unhandled request " ++ show r
 
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do
