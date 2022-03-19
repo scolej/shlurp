@@ -49,6 +49,9 @@ data Ev
   | EvDragFinish
   | EvMouseClicked WinId Int -- ^ mouse button clicked on window
   | EvCmdClose WinId
+  --
+  | EvCmdFocusNext -- ^ switch to the next most recently used window
+  | EvCmdFocusFinished -- ^ indicate that we've finished switching focus: raise current focused win to top of focus stack
   deriving (Eq, Show)
 
 --
