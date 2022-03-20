@@ -92,11 +92,20 @@ data DragResize = DragResize
     }
     deriving (Show)
 
+data FocusCycleState = FocusCycleState
+    { -- | infinite repetition of original ordering which we drop from as we go
+      fcsRing :: [WinId]
+    , -- | the original focus list (not infinite) to reinstate when we're done
+      fcsOrig :: [WinId]
+    }
+
 data WmState = WmState
     { -- | all windows
       wmWindows :: [Win]
     , -- | windows in order of focus history
       wmFocusHistory :: [WinId]
+    , -- | if we're currently cycling window focus, this contains the focus ring
+      wmFocusRing :: Maybe FocusCycleState
     , -- | current drag-resize state
       wmDragResize :: Maybe DragResize
     , -- | configuration
@@ -134,6 +143,7 @@ wmBlankState =
     WmState
         { wmWindows = []
         , wmFocusHistory = []
+        , wmFocusRing = Nothing
         , wmDragResize = Nothing
         , wmConf = wcDefault
         , wmScreenBounds = []
@@ -168,6 +178,7 @@ handleEvent (EvWantsMap w) wm0 =
      in (addWindow w wm0, [ReqManage wid, ReqMap wid])
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
 handleEvent (EvWasDestroyed wid) wm0 =
+    -- todo remove from ring
     let ws0 = wmWindows wm0
         ws1 = filter (\w -> winId w /= wid) ws0
      in (wm0{wmWindows = ws1}, [])
@@ -235,9 +246,43 @@ handleEvent (EvMouseClicked wid button) wm0
     | button == 3 = (wm0, [ReqLower wid])
     | otherwise = (wm0, [])
 handleEvent (EvCmdClose wid) wm0 = (wm0, [ReqClose wid])
-handleEvent (EvCmdFocusNext) wm0 = (wm0, [])
-handleEvent (EvCmdFocusFinished) wm0 = (wm0, [])
+handleEvent EvCmdFocusNext wm0 =
+    let (mnext, wm1) = rotateRing wm0
+     in ( wm1
+        , case mnext of
+            Just next -> [ReqFocus next, ReqRaise next]
+            Nothing -> []
+        )
+handleEvent EvCmdFocusFinished wm0 = (finishFocusChange wm0, [])
 handleEvent _ _ = undefined
+
+finishFocusChange :: WmState -> WmState
+finishFocusChange wm0 =
+    let mfr = wmFocusRing wm0
+        cur = wmFocusHistory wm0
+        reinstatedHistory = case mfr of
+            Just fr -> fcsOrig fr
+            Nothing -> cur
+     in wm0
+            { wmFocusRing = Nothing
+            , wmFocusHistory = reinstatedHistory
+            }
+
+{- | Rotate the focus ring or create it if it doesn't exist yet. Returns
+ the new state and the window at the front of the ring.
+-}
+rotateRing :: WmState -> (Maybe WinId, WmState)
+rotateRing wm0 =
+    let fr0 =
+            fromMaybe
+                ( FocusCycleState
+                    { fcsRing = cycle $ wmFocusHistory wm0
+                    , fcsOrig = wmFocusHistory wm0
+                    }
+                )
+                (wmFocusRing wm0)
+        fr = fr0{fcsRing = tail $ fcsRing fr0}
+     in (headMay $ fcsRing fr, wm0{wmFocusRing = Just fr})
 
 -- | Add a window to the window list.
 addWindow :: Win -> WmState -> WmState

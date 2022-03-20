@@ -16,7 +16,8 @@ sequenceTests wm0 ts =
     let go (wm0, acc) (e, t) =
             let (wm1, cs) = handleEvent e wm0
              in (wm1, test (t wm1 cs) : acc)
-     in test . snd $ foldl go (wm0, []) ts
+     in -- todo fold different to avoid reverse
+        test . reverse . snd $ foldl go (wm0, []) ts
 
 wid0, wid1, wid2 :: WinId
 wid0 = 0
@@ -263,35 +264,6 @@ wm3Windows =
         , wmDragResize = Nothing
         }
 
-mruFocusSwitching' :: Test
-mruFocusSwitching' =
-    let wm0 = handleEvents wm3Windows [EvFocusIn 2, EvFocusIn 1, EvFocusIn 0] -- set up known focus order
-        (wm1, cs1) = handleEvent EvCmdFocusNext wm0
-        (wm2, _) = handleEvent (EvFocusIn 1) wm1
-        (wm3, cs3) = handleEvent EvCmdFocusFinished wm2
-        -- then switch back
-        (wm4, cs4) = handleEvent EvCmdFocusNext wm3
-        (wm5, _) = handleEvent (EvFocusIn 0) wm4
-        (wm6, cs6) = handleEvent EvCmdFocusFinished wm5
-     in test
-            [ "switch"
-                ~: [ "window 0 is focused" ~: wmFocused wm0 ~?= Just 0
-                   , "window 0 is still focused" ~: wmFocused wm1 ~?= Just 0
-                   , "requests focus for 1" ~: cs1 ~?= [ReqFocus 1]
-                   , "window 1 now focused" ~: wmFocused wm2 ~?= Just 1
-                   , "window 1 still focused" ~: wmFocused wm3 ~?= Just 1
-                   , "no requests after first change" ~: cs3 ~?= []
-                   ]
-            , "switch back"
-                ~: [ "window 1 is focused" ~: wmFocused wm3 ~?= Just 1
-                   , "window 1 is still focused" ~: wmFocused wm4 ~?= Just 1
-                   , "requests focus for 1" ~: cs4 ~?= [ReqFocus 0]
-                   , "window 0 now focused" ~: wmFocused wm5 ~?= Just 0
-                   , "window 0 still focused" ~: wmFocused wm6 ~?= Just 0
-                   , "no requests after second change" ~: cs6 ~?= []
-                   ]
-            ]
-
 mruFocusSwitching :: Test
 mruFocusSwitching =
     let wm0 = handleEvents wm3Windows [EvFocusIn 2, EvFocusIn 1, EvFocusIn 0] -- set up known focus order
@@ -299,10 +271,10 @@ mruFocusSwitching =
             ~: sequenceTests
                 wm0
                 [
-                    ( EvCmdFocusNext
+                    ( EvCmdFocusNext -- switch
                     , \wm cs ->
                         [ "window 0 is still focused" ~: wmFocused wm ~?= Just 0
-                        , "requests focus for 1" ~: cs ~?= [ReqFocus 1]
+                        , "requests focus for 1" ~: cs ~?= [ReqFocus 1, ReqRaise 1]
                         ]
                     )
                 ,
@@ -313,6 +285,71 @@ mruFocusSwitching =
                     ( EvCmdFocusFinished
                     , \wm cs ->
                         [ "window 1 still focused" ~: wmFocused wm ~?= Just 1
+                        , "no requests after first change" ~: cs ~?= []
+                        ]
+                    )
+                ,
+                    ( EvCmdFocusNext -- switch back
+                    , \wm cs ->
+                        [ "window 1 is still focused" ~: wmFocused wm ~?= Just 1
+                        , "requests focus for 0" ~: cs ~?= [ReqFocus 0, ReqRaise 0]
+                        ]
+                    )
+                ,
+                    ( EvFocusIn 0
+                    , \wm _ -> ["window 0 now focused" ~: wmFocused wm ~?= Just 0]
+                    )
+                ,
+                    ( EvCmdFocusFinished
+                    , \wm cs ->
+                        [ "window 0 still focused" ~: wmFocused wm ~?= Just 0
+                        , "no requests after first change" ~: cs ~?= []
+                        ]
+                    )
+                ,
+                    ( EvCmdFocusNext -- double switch
+                    , \wm cs ->
+                        [ "window 0 is still focused" ~: wmFocused wm ~?= Just 0
+                        , "requests focus for 1" ~: cs ~?= [ReqFocus 1, ReqRaise 1]
+                        ]
+                    )
+                ,
+                    ( EvFocusIn 1
+                    , \wm _ -> ["window 1 now focused" ~: wmFocused wm ~?= Just 1]
+                    )
+                ,
+                    ( EvCmdFocusNext
+                    , \wm cs ->
+                        [ "window 1 is still focused" ~: wmFocused wm ~?= Just 1
+                        , "requests focus for 2" ~: cs ~?= [ReqFocus 2, ReqRaise 2]
+                        ]
+                    )
+                ,
+                    ( EvFocusIn 2
+                    , \wm _ -> ["window 2 now focused" ~: wmFocused wm ~?= Just 2]
+                    )
+                ,
+                    ( EvCmdFocusFinished
+                    , \wm cs ->
+                        [ "window 2 still focused" ~: wmFocused wm ~?= Just 2
+                        , "no requests after first change" ~: cs ~?= []
+                        ]
+                    )
+                ,
+                    ( EvCmdFocusNext -- switch back again
+                    , \wm cs ->
+                        [ "window 2 is still focused" ~: wmFocused wm ~?= Just 2
+                        , "requests focus for 0" ~: cs ~?= [ReqFocus 0, ReqRaise 0]
+                        ]
+                    )
+                ,
+                    ( EvFocusIn 0
+                    , \wm _ -> ["window 0 now focused" ~: wmFocused wm ~?= Just 0]
+                    )
+                ,
+                    ( EvCmdFocusFinished
+                    , \wm cs ->
+                        [ "window 0 still focused" ~: wmFocused wm ~?= Just 0
                         , "no requests after first change" ~: cs ~?= []
                         ]
                     )
@@ -332,7 +369,6 @@ allTests =
         , resizeAWindow
         , resizeSnap
         , mruFocusSwitching
-        , mruFocusSwitching'
         ]
 
 main :: IO ()
