@@ -85,11 +85,15 @@ data DragResize
 data WmState =
   WmState
   { wmWindows :: [Win] -- ^ all windows
-  , wmFocused :: Maybe WinId -- ^ id of the focused window
+  , wmFocusHistory ::  [WinId] -- ^ windows in order of focus history
   , wmDragResize :: Maybe DragResize -- ^ current drag-resize state
   , wmConf :: WmConfig -- ^ configuration
   , wmScreenBounds :: [Bounds] -- ^ screen bounds
   }
+
+-- | Finds the currently focused window.
+wmFocused :: WmState -> Maybe WinId
+wmFocused wm0 = headMay $ wmFocusHistory wm0
 
 data WmConfig =
   WmConfig
@@ -112,7 +116,7 @@ wmBlankState :: WmState
 wmBlankState =
   WmState
   { wmWindows = []
-  , wmFocused = Nothing
+  , wmFocusHistory = []
   , wmDragResize = Nothing
   , wmConf = wcDefault
   , wmScreenBounds = []
@@ -123,6 +127,17 @@ findWindow wm wid = find (\w -> winId w == wid) (wmWindows wm)
 
 wmMappedWindows :: WmState -> [WinId]
 wmMappedWindows wm0 = map winId $ filter winMapped (wmWindows wm0)
+
+-- | Builds a new wm state given that a window recently became focused.
+focusListNew
+  :: WmState -- ^ existing state
+  -> WinId -- ^ window which received focus
+  -> WmState -- ^ new state
+focusListNew wm0 wid =
+  let history0 = wmFocusHistory wm0
+      rest = map winId (wmWindows wm0)
+      history1 = nub $ wid : history0 ++ rest
+  in wm0 { wmFocusHistory = history1 }
 
 -- | Handle an event. Produces the new window state and any requests which
 -- should be forwarded.
@@ -146,8 +161,8 @@ handleEvent (EvMouseEntered wid) wm0 =
   (wm0, [ReqFocus wid])
 
 handleEvent (EvFocusIn wid) wm0 =
-  let maybePrevWid = wmFocused wm0
-      wm1 = wm0 { wmFocused = Just wid }
+  let maybePrevWid = headMay $ wmFocusHistory wm0
+      wm1 = focusListNew wm0 wid
       reqs = [ReqStyleFocused wid]
              ++ case maybePrevWid
                 of Nothing -> []
@@ -208,6 +223,10 @@ handleEvent (EvMouseClicked wid button) wm0
   | otherwise = (wm0, [])
 
 handleEvent (EvCmdClose wid) wm0 = (wm0, [ReqClose wid])
+
+handleEvent (EvCmdFocusNext) wm0 = (wm0, [])
+
+handleEvent (EvCmdFocusFinished) wm0 = (wm0, [])
 
 handleEvent _ _ = undefined
 

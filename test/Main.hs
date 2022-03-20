@@ -1,6 +1,20 @@
 import Test.HUnit
 import Shlurp
 
+handleEvents :: WmState -> [Ev] -> WmState
+handleEvents = foldl (\wm0 e -> fst $ handleEvent e wm0)
+
+-- | Sequence events with assertions at each stage.
+sequenceTests
+  :: WmState -- ^ starting state
+  -> [(Ev, WmState -> [Request] -> [Test])] -- ^ events and assertions
+  -> Test -- ^ resulting test cases bundled up together
+sequenceTests wm0 ts =
+  let go (wm0, acc) (e, t) =
+        let (wm1, cs) = handleEvent e wm0
+        in (wm1, test (t wm1 cs) : acc)
+  in test . snd $ foldl go (wm0, []) ts
+
 wid0, wid1, wid2 :: WinId
 wid0 = 0
 wid1 = 1
@@ -34,23 +48,22 @@ wmTwoWindows :: WmState
 wmTwoWindows =
   wmBlankState
   { wmWindows = [win0, win1]
-  , wmFocused = Just wid0
+  , wmFocusHistory = [wid0, wid1]
   , wmDragResize = Nothing
   }
 
 mapsWindow :: Test
-mapsWindow =
-  let wm0 = wmBlankState
-      (wm1, cs1) = handleEvent (EvWantsMap win0) wm0
-      (wm2, cs2) = handleEvent (EvWasMapped wid0) wm1
-  in "maps window" ~:
-        [ "nothing is focused" ~: wmFocused wm1 ~?= Nothing
-        , "no windows mapped" ~: wmMappedWindows wm1 ~?= []
-        , "requests to map window" ~: cs1 ~?= [ ReqManage wid0
-                                              , ReqMap wid0 ]
-        , "window is mapped" ~: wmMappedWindows wm2 ~?= [wid0]
-        , "no further requests" ~: cs2 ~?= []
-        ]
+mapsWindow = sequenceTests wmBlankState
+  [ ( EvWantsMap win0
+    , \wm cs -> [ "nothing focused" ~: wmFocused wm ~?= Nothing
+                , "nothing mapped" ~: wmMappedWindows wm ~?= []
+                , "requests map" ~: cs ~?= [ReqManage wid0 , ReqMap wid0]
+                ] )
+  , ( EvWasMapped wid0
+    , \wm cs -> [ "window mapped" ~: wmMappedWindows wm ~?= [wid0]
+                , "no requests" ~: cs ~?= []
+                ] )
+  ]
 
 windowDestroyed :: Test
 windowDestroyed =
@@ -224,15 +237,12 @@ wm3Windows :: WmState
 wm3Windows =
   wmBlankState
   { wmWindows = [win0, win1, win2]
-  , wmFocused = Just wid0
+  , wmFocusHistory = [wid0, wid1, wid2]
   , wmDragResize = Nothing
   }
 
-handleEvents :: WmState -> [Ev] -> WmState
-handleEvents = foldl (\wm0 e -> fst $ handleEvent e wm0)
-
-mruFocusSwitching :: Test
-mruFocusSwitching =
+mruFocusSwitching' :: Test
+mruFocusSwitching' =
   let wm0 = handleEvents wm3Windows [EvFocusIn 2, EvFocusIn 1, EvFocusIn 0] -- set up known focus order
       (wm1, cs1) = handleEvent EvCmdFocusNext wm0
       (wm2, _) = handleEvent (EvFocusIn 1) wm1
@@ -260,6 +270,25 @@ mruFocusSwitching =
        ]
      ]
 
+mruFocusSwitching :: Test
+mruFocusSwitching =
+  let wm0 = handleEvents wm3Windows [EvFocusIn 2, EvFocusIn 1, EvFocusIn 0] -- set up known focus order
+  in "mru focus switching" ~: sequenceTests wm0
+  [ ( EvCmdFocusNext
+    , \wm cs -> [ "window 0 is still focused" ~: wmFocused wm ~?= Just 0
+                , "requests focus for 1" ~: cs ~?= [ReqFocus 1]
+                ]
+    )
+  , ( EvFocusIn 1
+    , \wm _ -> ["window 1 now focused" ~: wmFocused wm ~?= Just 1]
+    )
+  , ( EvCmdFocusFinished
+    , \wm cs -> [ "window 1 still focused" ~: wmFocused wm ~?= Just 1
+                , "no requests after first change" ~: cs ~?= []
+                ]
+    )
+  ]
+
 allTests :: Test
 allTests =
   TestList [ mapsWindow
@@ -273,6 +302,7 @@ allTests =
            , resizeAWindow
            , resizeSnap
            , mruFocusSwitching
+           , mruFocusSwitching'
            ]
 
 main :: IO ()
