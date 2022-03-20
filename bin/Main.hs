@@ -29,7 +29,10 @@ data WmReadOnly = WmReadOnly
 {- | State we use for keeping track of what we're doing with X and how it
  might impact how we translate events for Shlurp.
 -}
-data XState = XState {xsDragState :: XDragState}
+data XState = XState
+    { xsDragState :: XDragState
+    , xsNakedMod :: Bool
+    }
 
 -- | Stages of drag.
 data XDragState
@@ -42,7 +45,10 @@ data XDragState
 
 xInitState :: XState
 xInitState =
-    XState{xsDragState = NoDrag}
+    XState
+        { xsDragState = NoDrag
+        , xsNakedMod = False
+        }
 
 main :: IO ()
 main = do
@@ -75,8 +81,13 @@ main = do
         )
 
     -- todo paramterize mask
-    kc <- keysymToKeycode d xK_q
-    grabKey d kc mod1Mask root False grabModeAsync grabModeAsync
+    let grab sym mask = do
+          kc <- keysymToKeycode d sym
+          grabKey d kc mask root False grabModeAsync grabModeAsync
+    grab xK_q mod1Mask
+    grab xK_Tab mod1Mask
+    grab xK_Alt_L 0
+    grab xK_Alt_R 0
 
     let cm = defaultColormap d (defaultScreen d)
     red <- color_pixel . fst <$> allocNamedColor d cm "#ff0000"
@@ -202,15 +213,33 @@ convertEvent
         return ([EvWasResized win $ transformBounds x y w h bw], xstate)
 convertEvent
     WmReadOnly{roDisplay = d}
-    xstate
-    KeyEvent{ev_subwindow = w, ev_keycode = kc} = do
+    xstate0
+    KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et } = do
         ks <- keycodeToKeysym d kc 0
-        let r
-                | ks == xK_q = return ([EvCmdClose w], xstate)
+        let xstateF = xstate0 { xsNakedMod = False }
+        let xstateT = xstate0 { xsNakedMod = True }
+        let down
+                | ks == xK_q = return ([EvCmdClose w], xstateF)
+                | ks == xK_Tab = return ([EvCmdFocusNext], xstateF)
+                | ks == xK_Alt_L || ks == xK_Alt_R = do
+                    putStrLn "mod down"
+                    return ([], xstateT)
                 | otherwise = do
-                    putStrLn $ unwords ["no binding for", show ks]
-                    return ([], xstate)
-        r
+                    putStrLn $ unwords ["no down binding for", show ks]
+                    return ([], xstateF)
+        let up | ks == xK_Alt_L || ks == xK_Alt_R = do
+                   putStrLn "mod up"
+                   if xsNakedMod xstate0
+                     then return ([], xstateF)
+                     else do
+                       putStrLn "finished!"
+                       return  ([EvCmdFocusFinished], xstateF)
+               | otherwise = do
+                    putStrLn $ unwords ["no up binding for", show ks]
+                    return ([], xstate0)
+        if et == keyPress
+          then down
+          else up
 convertEvent
     WmReadOnly{roDisplay = d, roRoot = r}
     xstate@XState{xsDragState = dragState}
