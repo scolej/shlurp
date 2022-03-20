@@ -261,7 +261,7 @@ finishFocusChange wm0 =
     let mfr = wmFocusRing wm0
         cur = wmFocusHistory wm0
         reinstatedHistory = case mfr of
-            Just fr -> fcsOrig fr
+            Just fr -> nub (maybeToList (headMay $ fcsRing fr) ++ fcsOrig fr)
             Nothing -> cur
      in wm0
             { wmFocusRing = Nothing
