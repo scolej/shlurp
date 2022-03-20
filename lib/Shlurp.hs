@@ -155,19 +155,21 @@ findWindow wm wid = find (\w -> winId w == wid) (wmWindows wm)
 wmMappedWindows :: WmState -> [WinId]
 wmMappedWindows wm0 = map winId $ filter winMapped (wmWindows wm0)
 
--- | Builds a new wm state given that a window recently became focused.
-focusListNew ::
+{- | Builds a new focus history given a list of windows to put at the front
+ of the history. TODO this also needs to remove windows from input which
+ don't exist in base history.
+-}
+focusHistoryNew ::
     -- | existing state
     WmState ->
-    -- | window which received focus
-    WinId ->
+    -- | front of the new focus history
+    [WinId] ->
     -- | new state
-    WmState
-focusListNew wm0 wid =
+    [WinId]
+focusHistoryNew wm0 wids =
     let history0 = wmFocusHistory wm0
         rest = map winId (wmWindows wm0)
-        history1 = nub $ wid : history0 ++ rest
-     in wm0{wmFocusHistory = history1}
+     in nub $ wids ++ history0 ++ rest
 
 {- | Handle an event. Produces the new window state and any requests which
  should be forwarded.
@@ -189,13 +191,13 @@ handleEvent (EvMouseEntered wid) wm0 =
     (wm0, [ReqFocus wid])
 handleEvent (EvFocusIn wid) wm0 =
     let maybePrevWid = headMay $ wmFocusHistory wm0
-        wm1 = focusListNew wm0 wid
+        newHistory = focusHistoryNew wm0 [wid]
         reqs =
             [ReqStyleFocused wid]
                 ++ case maybePrevWid of
                     Nothing -> []
                     Just prevWid -> [ReqStyleUnfocused prevWid]
-     in (wm1, reqs)
+     in (wm0{wmFocusHistory = newHistory}, reqs)
 handleEvent (EvDragStart wid x y) wm0 =
     let mw = findWindow wm0 wid
         hf = wcHandleFrac $ wmConf wm0
@@ -256,12 +258,15 @@ handleEvent EvCmdFocusNext wm0 =
 handleEvent EvCmdFocusFinished wm0 = (finishFocusChange wm0, [])
 handleEvent _ _ = undefined
 
+{- | Finish cycling focus. Recall the focus-history when we started but
+ prepend, the newly focused window.
+-}
 finishFocusChange :: WmState -> WmState
 finishFocusChange wm0 =
     let mfr = wmFocusRing wm0
         cur = wmFocusHistory wm0
         reinstatedHistory = case mfr of
-            Just fr -> nub (maybeToList (headMay $ fcsRing fr) ++ fcsOrig fr)
+            Just fr -> focusHistoryNew wm0 (maybeToList (headMay $ fcsRing fr) ++ fcsOrig fr)
             Nothing -> cur
      in wm0
             { wmFocusRing = Nothing
