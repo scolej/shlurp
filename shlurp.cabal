@@ -21,4 +21,5 @@ test-suite tests
 executable shlurp
   hs-source-dirs: bin
   main-is: Main.hs
-  build-depends: base, shlurp, X11, time
+  build-depends: base, shlurp, time,
+                 X11 == 1.10.2.10

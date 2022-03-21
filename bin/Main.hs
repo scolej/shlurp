@@ -272,8 +272,8 @@ convertEvent
         | otherwise = do
             putStrLn "nothing for this click"
             return ([], xstate)
-convertEvent _ xstate AnyEvent{ev_event_type = et, ev_window = w} = do
-    if et == focusIn
+convertEvent _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} = do
+    if et == focusIn && not (m `elem` [notifyGrab, notifyUngrab])
         then return ([EvFocusIn w], xstate)
         else return ([], xstate)
 convertEvent _ xstate ev = do
