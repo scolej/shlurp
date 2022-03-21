@@ -8,6 +8,8 @@ must haves
 
 focus stack and MRU switching
 
+sling windows to hot spots with shortcuts
+
 close windows
 
 launch progs
@@ -16,8 +18,18 @@ launch progs
 
 
 
+bugs
+----
+
+window initial size / configurerequest not handled properly
+
+focus cycling is slightly borked - same window in there multiple times?
+
+
 technical
 ---------
+
+pull out modkey which is scattered everywhere
 
 key binds
 

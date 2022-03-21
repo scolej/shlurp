@@ -40,6 +40,7 @@ data Ev
     | EvWasUnmapped WinId
     | EvWantsMap Win
     | EvWasResized WinId Bounds
+    | EvWantsResize WinId Bounds
     | EvWasDestroyed WinId
     | EvFocusIn WinId
     | EvMouseEntered WinId
@@ -242,6 +243,7 @@ handleEvent (EvWasResized wid bounds) wm0 =
                 else w
         wm1 = wm0{wmWindows = map u ws0}
      in (wm1, [])
+handleEvent (EvWantsResize wid bounds) wm0 = (wm0, [ReqResize wid bounds])
 -- todo this event -> action mapping does not belong here
 handleEvent (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])

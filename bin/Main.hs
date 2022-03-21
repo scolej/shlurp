@@ -82,8 +82,8 @@ main = do
 
     -- todo paramterize mask
     let grab sym mask = do
-          kc <- keysymToKeycode d sym
-          grabKey d kc mask root False grabModeAsync grabModeAsync
+            kc <- keysymToKeycode d sym
+            grabKey d kc mask root False grabModeAsync grabModeAsync
     grab xK_q mod1Mask
     grab xK_Tab mod1Mask
     grab xK_Alt_L 0
@@ -146,7 +146,13 @@ transformBounds x y w h bw =
 newWindow :: Display -> WinId -> IO Win
 newWindow d w = do
     attr <- getWindowAttributes d w
-    let bounds = transformBounds (wa_x attr) (wa_y attr) (wa_width attr) (wa_height attr) (wa_border_width attr)
+    let bounds =
+            transformBounds
+                (wa_x attr)
+                (wa_y attr)
+                (wa_width attr)
+                (wa_height attr)
+                (wa_border_width attr)
         isMapped = wa_map_state attr == 1
     return $
         Win
@@ -176,6 +182,20 @@ convertEvent ro xstate MapRequestEvent{ev_window = w} = do
     return ([EvWantsMap win], xstate)
 convertEvent _ xstate MapNotifyEvent{ev_window = w} =
     return ([EvWasMapped w], xstate)
+-- todo configurereqeust will happen before map!
+-- should we create on creat and not maprequest?
+convertEvent
+    _
+    xstate
+    ConfigureRequestEvent
+        { ev_window = win
+        , ev_x = x
+        , ev_y = y
+        , ev_width = w
+        , ev_height = h
+        , ev_border_width = bw
+        } =
+        return ([EvWantsResize win $ transformBounds x y w h bw], xstate)
 convertEvent _ xstate DestroyWindowEvent{ev_window = w} =
     return ([EvWasDestroyed w], xstate)
 convertEvent _ xstate CrossingEvent{ev_window = w} =
@@ -214,10 +234,10 @@ convertEvent
 convertEvent
     WmReadOnly{roDisplay = d}
     xstate0
-    KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et } = do
+    KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et} = do
         ks <- keycodeToKeysym d kc 0
-        let xstateF = xstate0 { xsNakedMod = False }
-        let xstateT = xstate0 { xsNakedMod = True }
+        let xstateF = xstate0{xsNakedMod = False}
+        let xstateT = xstate0{xsNakedMod = True}
         let down
                 | ks == xK_q = return ([EvCmdClose w], xstateF)
                 | ks == xK_Tab = return ([EvCmdFocusNext], xstateF)
@@ -227,19 +247,20 @@ convertEvent
                 | otherwise = do
                     putStrLn $ unwords ["no down binding for", show ks]
                     return ([], xstateF)
-        let up | ks == xK_Alt_L || ks == xK_Alt_R = do
-                   putStrLn "mod up"
-                   if xsNakedMod xstate0
-                     then return ([], xstateF)
-                     else do
-                       putStrLn "finished!"
-                       return  ([EvCmdFocusFinished], xstateF)
-               | otherwise = do
+        let up
+                | ks == xK_Alt_L || ks == xK_Alt_R = do
+                    putStrLn "mod up"
+                    if xsNakedMod xstate0
+                        then return ([], xstateF)
+                        else do
+                            putStrLn "finished!"
+                            return ([EvCmdFocusFinished], xstateF)
+                | otherwise = do
                     putStrLn $ unwords ["no up binding for", show ks]
                     return ([], xstate0)
         if et == keyPress
-          then down
-          else up
+            then down
+            else up
 convertEvent
     WmReadOnly{roDisplay = d, roRoot = r}
     xstate@XState{xsDragState = dragState}
