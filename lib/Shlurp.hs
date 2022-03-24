@@ -36,9 +36,8 @@ mul4 :: (Integer, Integer) -> (Integer, Integer, Integer, Integer) -> (Integer, 
 mul4 (x, y) (l, r, t, b) = (x * l, x * r, y * t, y * b)
 
 data Ev
-    = EvNewWin Win
-    | EvWasMapped WinId
-    | EvWantsMap WinId
+    = EvWasMapped WinId
+    | EvWantsMap Win
     | EvWasResized WinId Bounds
     | EvWantsResize WinId Bounds
     | EvWasDestroyed WinId
@@ -51,9 +50,7 @@ data Ev
     | -- | mouse button clicked on window
       EvMouseClicked WinId Int
     | EvCmdClose WinId
-    | --
-
-      -- | switch to the next most recently used window
+    | -- | switch to the next most recently used window
       EvCmdFocusNext
     | -- | indicate that we've finished switching focus: raise current focused win to top of focus stack
       EvCmdFocusFinished
@@ -176,19 +173,28 @@ focusHistoryNew wm0 wids =
  should be forwarded.
 -}
 handleEvent :: Ev -> WmState -> (WmState, [Request])
-handleEvent (EvNewWin win) wm0 = (addWindow win wm0, [])
-handleEvent (EvWantsMap w) wm0 = (wm0, [ReqManage w, ReqMap w])
+
+-- handleEvent (EvNewWin win) wm0 = (addWindow win wm0, [])
+
+handleEvent (EvWantsMap win) wm0 =
+  let wid = winId win
+  in (addWindow win wm0, [ReqManage wid, ReqMap wid])
+
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
+
 handleEvent (EvWasDestroyed wid) wm0 =
     -- todo remove from ring
     let ws0 = wmWindows wm0
         ws1 = filter (\w -> winId w /= wid) ws0
      in (wm0{wmWindows = ws1}, [])
+
 -- todo it would be nice not to have to do this is focus is already on the
 -- window which was entered. but if the window has focus when we start up
 -- but haven't got that into our state yet it all breaks...
+
 handleEvent (EvMouseEntered wid) wm0 =
     (wm0, [ReqFocus wid])
+
 handleEvent (EvFocusIn wid) wm0 =
     let maybePrevWid = headMay $ wmFocusHistory wm0
         newHistory = focusHistoryNew wm0 [wid]
@@ -198,6 +204,7 @@ handleEvent (EvFocusIn wid) wm0 =
                     Nothing -> []
                     Just prevWid -> [ReqStyleUnfocused prevWid]
      in (wm0{wmFocusHistory = newHistory}, reqs)
+
 handleEvent (EvDragStart wid x y) wm0 =
     let mw = findWindow wm0 wid
         hf = wcHandleFrac $ wmConf wm0
@@ -207,6 +214,7 @@ handleEvent (EvDragStart wid x y) wm0 =
                 hand = grabWindowHandle hf bs (x, y)
             return $ DragResize wid x y hand bs
      in (wm0{wmDragResize = ds}, [])
+
 handleEvent (EvDragMove x y) wm0 =
     let ds = wmDragResize wm0
      in -- todo if we just maybe for drag resize, can do better here
@@ -233,7 +241,9 @@ handleEvent (EvDragMove x y) wm0 =
                     snappedBounds = snapBounds (wmConf wm0) otherBounds (hand == ResizeHandle HM HM) newBounds
                  in (wm0, [ReqResize wid snappedBounds])
             Nothing -> (wm0, [])
+
 handleEvent EvDragFinish wm0 = (wm0{wmDragResize = Nothing}, [])
+
 handleEvent (EvWasResized wid bounds) wm0 =
     let ws0 = wmWindows wm0
         u w =
@@ -242,13 +252,17 @@ handleEvent (EvWasResized wid bounds) wm0 =
                 else w
         wm1 = wm0{wmWindows = map u ws0}
      in (wm1, [])
+
 handleEvent (EvWantsResize wid bounds) wm0 = (wm0, [ReqResize wid bounds])
+
 -- todo this event -> action mapping does not belong here
 handleEvent (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
     | button == 3 = (wm0, [ReqLower wid])
     | otherwise = (wm0, [])
+
 handleEvent (EvCmdClose wid) wm0 = (wm0, [ReqClose wid])
+
 handleEvent EvCmdFocusNext wm0 =
     let (mnext, wm1) = rotateRing wm0
      in ( wm1
