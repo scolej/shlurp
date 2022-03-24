@@ -36,9 +36,9 @@ mul4 :: (Integer, Integer) -> (Integer, Integer, Integer, Integer) -> (Integer, 
 mul4 (x, y) (l, r, t, b) = (x * l, x * r, y * t, y * b)
 
 data Ev
-    = EvWasMapped WinId
-    | EvWasUnmapped WinId
-    | EvWantsMap Win
+    = EvNewWin Win
+    | EvWasMapped WinId
+    | EvWantsMap WinId
     | EvWasResized WinId Bounds
     | EvWantsResize WinId Bounds
     | EvWasDestroyed WinId
@@ -176,9 +176,8 @@ focusHistoryNew wm0 wids =
  should be forwarded.
 -}
 handleEvent :: Ev -> WmState -> (WmState, [Request])
-handleEvent (EvWantsMap w) wm0 =
-    let wid = winId w
-     in (addWindow w wm0, [ReqManage wid, ReqMap wid])
+handleEvent (EvNewWin win) wm0 = (addWindow win wm0, [])
+handleEvent (EvWantsMap w) wm0 = (wm0, [ReqManage w, ReqMap w])
 handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
 handleEvent (EvWasDestroyed wid) wm0 =
     -- todo remove from ring
@@ -258,7 +257,6 @@ handleEvent EvCmdFocusNext wm0 =
             Nothing -> []
         )
 handleEvent EvCmdFocusFinished wm0 = (finishFocusChange wm0, [])
-handleEvent _ _ = undefined
 
 {- | Finish cycling focus. Recall the focus-history when we started but
  prepend, the newly focused window.

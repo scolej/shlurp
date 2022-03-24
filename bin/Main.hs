@@ -50,6 +50,13 @@ xInitState =
         , xsNakedMod = False
         }
 
+-- feeeeeeeeeeeecccckkkk
+--
+-- so we dont have create notify
+-- cant use any event coz the window is root
+-- could figure out some logic to create windows on demand
+-- could add createnotify ...
+
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
@@ -59,6 +66,8 @@ main = do
 
     d <- openDisplay "" -- todo do we need to use env var?
     let root = defaultRootWindow d
+
+    putStrLn $ unwords ["root window is", show root]
 
     selectInput
         d
@@ -178,8 +187,7 @@ mag (x0, y0) (x1, y1) =
 -}
 convertEvent :: WmReadOnly -> XState -> Event -> IO ([Ev], XState)
 convertEvent ro xstate MapRequestEvent{ev_window = w} = do
-    win <- newWindow (roDisplay ro) w
-    return ([EvWantsMap win], xstate)
+    return ([EvWantsMap w], xstate)
 convertEvent _ xstate MapNotifyEvent{ev_window = w} =
     return ([EvWasMapped w], xstate)
 -- todo configurereqeust will happen before map!
@@ -297,6 +305,14 @@ convertEvent _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mod
     if et == focusIn && not (m `elem` [notifyGrab, notifyUngrab])
         then return ([EvFocusIn w], xstate)
         else return ([], xstate)
+convertEvent ro xstate ev@AnyEvent{ev_event_type = t, ev_window = w}
+    | t == createNotify = do
+        win <- newWindow (roDisplay ro) w
+        putStrLn $ unwords ["new window with id", show w]
+        return ([EvNewWin win], xstate)
+    | otherwise = do
+        putStrLn $ unwords ["converted any-event", show ev, "to nothing"]
+        return ([], xstate)
 convertEvent _ xstate ev = do
     putStrLn $ unwords ["converted", show ev, "to nothing"]
     return ([], xstate)
