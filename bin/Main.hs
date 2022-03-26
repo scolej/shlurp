@@ -57,6 +57,10 @@ xInitState =
 -- could figure out some logic to create windows on demand
 -- could add createnotify ...
 
+-- | Mask to use for all WM bindings.
+modMask :: KeyMask
+modMask = mod4Mask
+
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
@@ -79,7 +83,7 @@ main = do
     ( grabButton
             d
             anyButton
-            mod1Mask
+            modMask
             root
             False
             (buttonPressMask .|. buttonReleaseMask .|. button1MotionMask)
@@ -93,10 +97,11 @@ main = do
     let grab sym mask = do
             kc <- keysymToKeycode d sym
             grabKey d kc mask root False grabModeAsync grabModeAsync
-    grab xK_q mod1Mask
-    grab xK_Tab mod1Mask
-    grab xK_Alt_L 0
-    grab xK_Alt_R 0
+    grab xK_q modMask
+    grab xK_Tab modMask
+    grab xK_space modMask
+    grab xK_Super_L 0
+    grab xK_Super_R 0
 
     let cm = defaultColormap d (defaultScreen d)
     red <- color_pixel . fst <$> allocNamedColor d cm "#ff0000"
@@ -202,7 +207,6 @@ convertEvent
         , ev_y = y
         , ev_width = w
         , ev_height = h
-        , ev_border_width = bw
         , ev_value_mask = vm
         } = do
         -- simply pass through configure requests,
@@ -211,14 +215,11 @@ convertEvent
             do
                 putStrLn $ unwords ["move", show win, show (x, y)]
                 moveWindow d win (fromIntegral x) (fromIntegral y)
+        -- todo extract a "hasMaskBits" function
         when ((fromIntegral vm .&. (cWWidth .|. cWHeight)) /= 0) $
             do
                 putStrLn $ unwords ["resize", show win, show (w, h)]
-                resizeWindow
-                    d
-                    win
-                    (fromIntegral w)
-                    (fromIntegral h)
+                resizeWindow d win (fromIntegral w) (fromIntegral h)
         return ([], xstate)
 convertEvent _ xstate DestroyWindowEvent{ev_window = w} =
     return ([EvWasDestroyed w], xstate)
@@ -264,18 +265,20 @@ convertEvent
         let xstateT = xstate0{xsNakedMod = True}
         let down
                 | ks == xK_q = return ([EvCmdClose w], xstateF)
-                | ks == xK_Tab = return ([EvCmdFocusNext], xstateF)
-                | ks == xK_Alt_L || ks == xK_Alt_R = do
+                | ks == xK_Tab || ks == xK_space = return ([EvCmdFocusNext], xstateF)
+                | ks == xK_Super_L || ks == xK_Super_R = do -- todo match modMask
                     putStrLn "mod down"
                     return ([], xstateT)
                 | otherwise = do
                     putStrLn $ unwords ["no down binding for", show ks]
                     return ([], xstateF)
         let up
-                | ks == xK_Alt_L || ks == xK_Alt_R = do
+                | ks == xK_Super_L || ks == xK_Super_R = do -- todo match modMask
                     putStrLn "mod up"
                     if xsNakedMod xstate0
-                        then return ([], xstateF)
+                        then do
+                            putStrLn "single change"
+                            return ([EvCmdFocusNext, EvCmdFocusFinished], xstateF)
                         else do
                             putStrLn "finished!"
                             return ([EvCmdFocusFinished], xstateF)
