@@ -42,6 +42,7 @@ data Ev
     | EvWantsResize WinId Bounds
     | EvWasDestroyed WinId
     | EvFocusIn WinId
+    | EvFocusOut WinId
     | EvMouseEntered WinId
     | EvDragStart WinId Integer Integer
     | EvDragMove Integer Integer
@@ -195,14 +196,11 @@ handleEvent (EvMouseEntered wid) wm0 =
     (wm0, [ReqFocus wid])
 
 handleEvent (EvFocusIn wid) wm0 =
-    let maybePrevWid = headMay $ wmFocusHistory wm0
-        newHistory = focusHistoryNew wm0 [wid]
-        reqs =
-            [ReqStyleFocused wid]
-                ++ case maybePrevWid of
-                    Nothing -> []
-                    Just prevWid -> [ReqStyleUnfocused prevWid]
+    let newHistory = focusHistoryNew wm0 [wid]
+        reqs = [ReqStyleFocused wid]
      in (wm0{wmFocusHistory = newHistory}, reqs)
+
+handleEvent (EvFocusOut wid) wm0 = (wm0, [ReqStyleUnfocused wid])
 
 handleEvent (EvDragStart wid x y) wm0 =
     let mw = findWindow wm0 wid

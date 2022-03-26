@@ -266,14 +266,16 @@ convertEvent
         let down
                 | ks == xK_q = return ([EvCmdClose w], xstateF)
                 | ks == xK_Tab || ks == xK_space = return ([EvCmdFocusNext], xstateF)
-                | ks == xK_Super_L || ks == xK_Super_R = do -- todo match modMask
+                | ks == xK_Super_L || ks == xK_Super_R = do
+                    -- todo match modMask
                     putStrLn "mod down"
                     return ([], xstateT)
                 | otherwise = do
                     putStrLn $ unwords ["no down binding for", show ks]
                     return ([], xstateF)
         let up
-                | ks == xK_Super_L || ks == xK_Super_R = do -- todo match modMask
+                | ks == xK_Super_L || ks == xK_Super_R = do
+                    -- todo match modMask
                     putStrLn "mod up"
                     if xsNakedMod xstate0
                         then do
@@ -303,7 +305,10 @@ convertEvent
             _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
             return
                 ( []
-                , xstate{xsDragState = NascentDrag w (fromIntegral x) (fromIntegral y)}
+                , xstate
+                    { xsDragState = NascentDrag w (fromIntegral x) (fromIntegral y)
+                    , xsNakedMod = False
+                    }
                 )
         | et == buttonRelease && but == button1 = do
             ungrabPointer d currentTime
@@ -311,19 +316,29 @@ convertEvent
                 DragInProgress ->
                     return
                         ( [EvDragFinish]
-                        , xstate{xsDragState = NoDrag}
+                        , xstate
+                            { xsDragState = NoDrag
+                            , xsNakedMod = False
+                            }
                         )
                 _ -> do
-                    return ([EvMouseClicked w 1], xstate{xsDragState = NoDrag})
+                    return ([EvMouseClicked w 1], xstate{xsDragState = NoDrag, xsNakedMod = False})
         | et == buttonRelease && but == button3 = do
             return ([EvMouseClicked w 3], xstate)
         | otherwise = do
             putStrLn "nothing for this click"
-            return ([], xstate)
-convertEvent _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} = do
-    if et == focusIn && not (m `elem` [notifyGrab, notifyUngrab])
-        then return ([EvFocusIn w], xstate)
-        else return ([], xstate)
+            return ([], xstate{xsNakedMod = False})
+convertEvent _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} =
+    return $
+        if m `elem` [notifyGrab, notifyUngrab]
+            then ([], xstate)
+            else
+                if et == focusIn
+                    then ([EvFocusIn w], xstate)
+                    else
+                        if et == focusOut
+                            then ([EvFocusOut w], xstate)
+                            else ([], xstate)
 convertEvent _ xstate ev = do
     putStrLn $ unwords ["converted", show ev, "to nothing"]
     return ([], xstate)
