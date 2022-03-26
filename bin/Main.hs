@@ -186,14 +186,11 @@ mag (x0, y0) (x1, y1) =
  also, I'm pretty unsure about 1:many event mapping, seems weird
 -}
 convertEvent :: WmReadOnly -> XState -> Event -> IO ([Ev], XState)
-
 convertEvent ro xstate MapRequestEvent{ev_window = w} = do
-  win <- newWindow (roDisplay ro) w
-  return ([EvWantsMap win], xstate)
-
+    win <- newWindow (roDisplay ro) w
+    return ([EvWantsMap win], xstate)
 convertEvent _ xstate MapNotifyEvent{ev_window = w} =
     return ([EvWasMapped w], xstate)
-
 -- todo configurereqeust will happen before map!
 -- should we create on creat and not maprequest?
 convertEvent
@@ -206,20 +203,27 @@ convertEvent
         , ev_width = w
         , ev_height = h
         , ev_border_width = bw
+        , ev_value_mask = vm
         } = do
         -- simply pass through configure requests,
         -- we don't have anything to say about them at the moment.
-        moveResizeWindow d win
-          (fromIntegral x) (fromIntegral y)
-          (fromIntegral w) (fromIntegral h)
+        when ((fromIntegral vm .&. (cWX .|. cWY)) /= 0) $
+            do
+                putStrLn $ unwords ["move", show win, show (x, y)]
+                moveWindow d win (fromIntegral x) (fromIntegral y)
+        when ((fromIntegral vm .&. (cWWidth .|. cWHeight)) /= 0) $
+            do
+                putStrLn $ unwords ["resize", show win, show (w, h)]
+                resizeWindow
+                    d
+                    win
+                    (fromIntegral w)
+                    (fromIntegral h)
         return ([], xstate)
-
 convertEvent _ xstate DestroyWindowEvent{ev_window = w} =
     return ([EvWasDestroyed w], xstate)
-
 convertEvent _ xstate CrossingEvent{ev_window = w} =
     return ([EvMouseEntered w], xstate)
-
 convertEvent
     _
     xstate@XState{xsDragState = dragState}
@@ -239,8 +243,9 @@ convertEvent
                     else ([EvDragMove x y], xstate)
             DragInProgress -> ([EvDragMove x y], xstate)
             _ -> ([], xstate)
-
-convertEvent _ xstate
+convertEvent
+    _
+    xstate
     ConfigureEvent
         { ev_window = win
         , ev_x = x
@@ -250,9 +255,9 @@ convertEvent _ xstate
         , ev_border_width = bw
         } =
         return ([EvWasResized win $ transformBounds x y w h bw], xstate)
-
 convertEvent
-    WmReadOnly{roDisplay = d} xstate0
+    WmReadOnly{roDisplay = d}
+    xstate0
     KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et} = do
         ks <- keycodeToKeysym d kc 0
         let xstateF = xstate0{xsNakedMod = False}
@@ -280,7 +285,6 @@ convertEvent
         if et == keyPress
             then down
             else up
-
 convertEvent
     WmReadOnly{roDisplay = d, roRoot = r}
     xstate@XState{xsDragState = dragState}
@@ -313,12 +317,10 @@ convertEvent
         | otherwise = do
             putStrLn "nothing for this click"
             return ([], xstate)
-
 convertEvent _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} = do
     if et == focusIn && not (m `elem` [notifyGrab, notifyUngrab])
         then return ([EvFocusIn w], xstate)
         else return ([], xstate)
-
 convertEvent _ xstate ev = do
     putStrLn $ unwords ["converted", show ev, "to nothing"]
     return ([], xstate)

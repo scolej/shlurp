@@ -43,8 +43,7 @@ data Ev
     | EvWasDestroyed WinId
     | EvFocusIn WinId
     | EvMouseEntered WinId
-    | --
-      EvDragStart WinId Integer Integer
+    | EvDragStart WinId Integer Integer
     | EvDragMove Integer Integer
     | EvDragFinish
     | -- | mouse button clicked on window

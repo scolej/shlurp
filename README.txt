@@ -29,6 +29,8 @@ focus cycling is slightly borked - same window in there multiple times?
 technical
 ---------
 
+ignore override redirect wins
+
 pull out modkey which is scattered everywhere
 
 key binds
