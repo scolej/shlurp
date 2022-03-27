@@ -6,13 +6,17 @@ TODO
 must haves
 ----------
 
-focus stack and MRU switching
-
 sling windows to hot spots with shortcuts
+  maximize toggle
+  half screen
+  vert max
+  horz max
 
 close windows
 
 launch progs
+
+keybind for lower to bottom
 
 ===> USABLE WM!!
 
@@ -21,15 +25,12 @@ launch progs
 bugs
 ----
 
-window initial size / configurerequest not handled properly
+dead windows accumulating in focus history
 
-focus cycling is slightly borked - same window in there multiple times?
 
 
 technical
 ---------
-
-ignore override redirect wins
 
 pull out modkey which is scattered everywhere
 
@@ -43,12 +44,14 @@ think about event/command interface
 
 error logger
 
+thing about how to write a log on keypress
+
 
 
 and then...
 -----------
 
-maximize toggle
+preserve stacking order while focus cycling
 
 scroll through windows under mouse
 
@@ -58,13 +61,17 @@ toggle border (might be a must for firefox context menus)
 
 move window colour to conf
 
-ensure snap to multi screen
-
 ensure adapt to screen resize
 
 double click expand in dir
 
 desktops? configuration registers?
 
-window menu / list and selection. eg: hold mod4, get a visual menu with
-list of windows, click on them to focus/raise, right click to minimize
+window menu / list and selection.
+eg: hold mod4,
+get a visual menu with list of windows,
+click on them to focus/raise,
+right click to minimize
+
+multi-screen snap polish:
+shouldn't be able to snap to the outside of other screens bounds

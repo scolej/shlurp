@@ -3,7 +3,6 @@ module Shlurp where
 import Data.List
 import Data.Maybe
 import Data.Word
-import Debug.Trace
 import Safe
 
 type WinId = Word64
@@ -154,8 +153,7 @@ wmMappedWindows :: WmState -> [WinId]
 wmMappedWindows wm0 = map winId $ filter winMapped (wmWindows wm0)
 
 {- | Builds a new focus history given a list of windows to put at the front
- of the history. TODO this also needs to remove windows from input which
- don't exist in base history.
+ of the history.
 -}
 focusHistoryNew ::
     -- | existing state
@@ -166,15 +164,14 @@ focusHistoryNew ::
     [WinId]
 focusHistoryNew wm0 wids =
     let history0 = wmFocusHistory wm0
-        rest = map winId (wmWindows wm0)
-     in nub $ wids ++ history0 ++ rest
+        allWids = map winId (wmWindows wm0)
+        first = filter (`elem` allWids) (wids ++ history0) -- ensure we don't re-instate destroyed windows
+     in nub (first ++ allWids)
 
 {- | Handle an event. Produces the new window state and any requests which
  should be forwarded.
 -}
 handleEvent :: Ev -> WmState -> (WmState, [Request])
-
--- handleEvent (EvNewWin win) wm0 = (addWindow win wm0, [])
 
 handleEvent (EvWantsMap win) wm0 =
   let wid = winId win
@@ -274,11 +271,9 @@ handleEvent EvCmdFocusFinished wm0 = (finishFocusChange wm0, [])
 -}
 finishFocusChange :: WmState -> WmState
 finishFocusChange wm0 =
-    let mfr = wmFocusRing wm0
-        cur = wmFocusHistory wm0
-        reinstatedHistory = case mfr of
+    let reinstatedHistory = case wmFocusRing wm0 of
             Just fr -> focusHistoryNew wm0 (maybeToList (headMay $ fcsRing fr) ++ fcsOrig fr)
-            Nothing -> cur
+            Nothing -> wmFocusHistory wm0
      in wm0
             { wmFocusRing = Nothing
             , wmFocusHistory = reinstatedHistory

@@ -12,12 +12,11 @@ sequenceTests ::
     [(Ev, WmState -> [Request] -> [Test])] ->
     -- | resulting test cases bundled up together
     Test
-sequenceTests wm0 ts =
+sequenceTests wmInit ts =
     let go (wm0, acc) (e, t) =
             let (wm1, cs) = handleEvent e wm0
              in (wm1, test (t wm1 cs) : acc)
-     in -- todo fold different to avoid reverse
-        test . reverse . snd $ foldl go (wm0, []) ts
+     in test . reverse . snd $ foldl go (wmInit, []) ts
 
 wid0, wid1, wid2 :: WinId
 wid0 = 0
@@ -99,7 +98,7 @@ focusFollowsMouse1 =
             ~: [ "window 0 focused" ~: wmFocused wm0 ~?= Just wid0
                , "requests new focus" ~: cs1 ~?= [ReqFocus wid1]
                , "window 1 is focused" ~: wmFocused wm2 ~?= Just wid1
-               , "requests focus styles" ~: cs2 ~?= [ReqStyleFocused wid1, ReqStyleUnfocused wid0]
+               , "requests focus styles" ~: cs2 ~?= [ReqStyleFocused wid1]
                ]
 
 focusFollowsMouse2 :: Test

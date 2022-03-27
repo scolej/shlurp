@@ -2,6 +2,7 @@ module Main where
 
 import Control.Monad
 import Data.Bits
+import Data.Maybe
 import Foreign.C.Types
 import Graphics.X11.Types
 import Graphics.X11.Xinerama
@@ -123,7 +124,7 @@ main = do
 
     (_, _, existingWindows) <- queryTree d root
     mapM_ (manageNewWindow conf ro) existingWindows
-    ws <- mapM (newWindow d) existingWindows
+    ws <- fmap catMaybes (mapM (newWindow d) existingWindows)
 
     screenBounds <- map rect2bounds <$> getScreenInfo d
 
@@ -133,6 +134,9 @@ main = do
                 , wmWindows = ws
                 , wmScreenBounds = screenBounds
                 }
+
+    putStrLn "init state"
+    printDebug wm0
 
     _ <- handleEventsForever ro xInitState wm0
     closeDisplay d
@@ -157,24 +161,31 @@ transformBounds x y w h bw =
         , boundsB = fromIntegral $ y + h + 2 * bw - 1
         }
 
-newWindow :: Display -> WinId -> IO Win
+{- | Make some queries and build a new window.
+ If the window is an "override redirect" window, return nothing.
+-}
+newWindow :: Display -> WinId -> IO (Maybe Win)
 newWindow d w = do
     attr <- getWindowAttributes d w
-    let bounds =
-            transformBounds
-                (wa_x attr)
-                (wa_y attr)
-                (wa_width attr)
-                (wa_height attr)
-                (wa_border_width attr)
-        isMapped = wa_map_state attr == 1
-    return $
-        Win
-            { winId = w
-            , winName = "?"
-            , winBounds = bounds
-            , winMapped = isMapped
-            }
+    if wa_override_redirect attr
+        then return Nothing
+        else do
+            let bounds =
+                    transformBounds
+                        (wa_x attr)
+                        (wa_y attr)
+                        (wa_width attr)
+                        (wa_height attr)
+                        (wa_border_width attr)
+                isMapped = wa_map_state attr == 1
+            return $
+                Just $
+                    Win
+                        { winId = w
+                        , winName = "?" -- todo
+                        , winBounds = bounds
+                        , winMapped = isMapped
+                        }
 
 mag :: (Integer, Integer) -> (Integer, Integer) -> Float
 mag (x0, y0) (x1, y1) =
@@ -193,7 +204,7 @@ mag (x0, y0) (x1, y1) =
 convertEvent :: WmReadOnly -> XState -> Event -> IO ([Ev], XState)
 convertEvent ro xstate MapRequestEvent{ev_window = w} = do
     win <- newWindow (roDisplay ro) w
-    return ([EvWantsMap win], xstate)
+    return (maybeToList (fmap EvWantsMap win), xstate)
 convertEvent _ xstate MapNotifyEvent{ev_window = w} =
     return ([EvWasMapped w], xstate)
 -- todo configurereqeust will happen before map!
@@ -388,6 +399,8 @@ handleEventsForever ro xstate0 wm0 = do
     ev <- allocaXEvent (\ep -> nextEvent d ep >> getEvent ep)
     -- putStrLn $ unwords ["got event", show ev]
     (wm1, xstate1) <- handleOneEvent ro xstate0 ev wm0
+    putStrLn "---"
+    printDebug wm1
     handleEventsForever ro xstate1 wm1
 
 showWindowBounds :: WmState -> IO ()
@@ -396,3 +409,8 @@ showWindowBounds wm =
             let Bounds l r t b = winBounds win
              in unwords [show $ winId win, show [l, t, r - l, b - t]]
      in putStrLn $ unlines $ map f (wmWindows wm)
+
+printDebug :: WmState -> IO ()
+printDebug wm = do
+    showWindowBounds wm
+    putStrLn $ unwords ["focus history", show (wmFocusHistory wm)]
