@@ -82,6 +82,7 @@ data DragResize = DragResize
 -- Maybe not a real "ring"?
 -- But name seems to fit.
 data Ring a = Ring [a] a [a]
+  deriving Show
 
 ringFromList :: [a] -> Ring a
 ringFromList [] = undefined
@@ -91,11 +92,12 @@ ringFocus :: Ring a -> a
 ringFocus (Ring _ x _) = x
 
 ringRotate :: Ring a -> Ring a
-ringRotate (Ring as x bs) = Ring (x : init as) (head bs) (tail bs ++ [last as])
+ringRotate r@(Ring [] _ []) = r
+ringRotate (  Ring as x bs) = Ring (x : init as) (head bs) (tail bs ++ [x])
 
 ringRotateBack :: Ring a -> Ring a
-ringRotateBack (Ring as x bs) =
-  Ring (tail as ++ [last bs]) (head as) (x : init bs)
+ringRotateBack r@(Ring [] _ []) = r
+ringRotateBack (  Ring as x bs) = Ring (tail as ++ [x]) (head as) (x : init bs)
 
 data FocusCycleState = FocusCycleState
   { fcsRing :: Ring WinId  -- ^ ring of original ordering which we can rotate through

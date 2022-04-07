@@ -17,9 +17,8 @@ import System.IO
 
 import Shlurp
 
-{- | Information we determine a single time at startup and then carry
- around for the rest of the program.
--}
+-- | Information we determine a single time at startup
+-- and then carry around for the rest of the program.
 data WmReadOnly = WmReadOnly
     { roDisplay :: Display
     , roRoot :: Window
@@ -27,9 +26,8 @@ data WmReadOnly = WmReadOnly
     , roUnfocusedColour :: Pixel
     }
 
-{- | State we use for keeping track of what we're doing with X and how it
- might impact how we translate events for Shlurp.
--}
+-- | State we use for keeping track of what we're doing with X
+-- and how it might impact how we translate events.
 data XState = XState
     { xsDragState :: XDragState
     , xsNakedMod :: Bool
@@ -37,12 +35,9 @@ data XState = XState
 
 -- | Stages of drag.
 data XDragState
-    = -- | there is no drag state at all
-      NoDrag
-    | -- | the mouse button is pressed at some x & y (not yet released), this might become a drag, but it might just be a click
-      NascentDrag WinId Integer Integer
-    | -- | mouse button is down and mouse is moving around, drag is active!
-      DragInProgress
+    = NoDrag -- ^ there is no drag state at all
+    | NascentDrag WinId Integer Integer -- ^ the mouse button is pressed at some x & y (not yet released), this might become a drag, but it might just be a click
+    | DragInProgress -- ^ mouse button is down and mouse is moving around, drag is active!
 
 xInitState :: XState
 xInitState =
@@ -50,13 +45,6 @@ xInitState =
         { xsDragState = NoDrag
         , xsNakedMod = False
         }
-
--- feeeeeeeeeeeecccckkkk
---
--- so we dont have create notify
--- cant use any event coz the window is root
--- could figure out some logic to create windows on demand
--- could add createnotify ...
 
 -- | Mask to use for all WM bindings.
 modMask :: KeyMask
@@ -105,8 +93,8 @@ main = do
     grab xK_Super_R 0
 
     let cm = defaultColormap d (defaultScreen d)
-    red <- color_pixel . fst <$> allocNamedColor d cm "#ff0000"
-    grey <- color_pixel . fst <$> allocNamedColor d cm "#333333"
+    red <- color_pixel . fst <$> allocNamedColor d cm "#4ac6e8"
+    grey <- color_pixel . fst <$> allocNamedColor d cm "#2c6f82"
 
     let ro =
             WmReadOnly
@@ -117,8 +105,8 @@ main = do
                 }
         conf =
             wcDefault
-                { wcSnapDist = 10
-                , wcSnapGap = 2
+                { wcSnapDist = 20
+                , wcSnapGap = 1
                 , wcBorderWidth = 2
                 }
 
@@ -149,9 +137,8 @@ rect2bounds rect =
         b = t + fromIntegral (rect_height rect) - 1
      in Bounds l r t b
 
-{- | Convert X's picture of window position to our idea of bounds.
- X's window width/height does not include the border width.
--}
+-- | Convert X's picture of window position to our idea of bounds.
+-- X's window width/height does not include the border width.
 transformBounds :: CInt -> CInt -> CInt -> CInt -> CInt -> Bounds
 transformBounds x y w h bw =
     Bounds
@@ -161,9 +148,8 @@ transformBounds x y w h bw =
         , boundsB = fromIntegral $ y + h + 2 * bw - 1
         }
 
-{- | Make some queries and build a new window.
- If the window is an "override redirect" window, return nothing.
--}
+-- | Make some queries and build a new window.
+-- If the window is an "override redirect" window, return nothing.
 newWindow :: Display -> WinId -> IO (Maybe Win)
 newWindow d w = do
     attr <- getWindowAttributes d w
@@ -277,6 +263,7 @@ convertEvent
         let down
                 | ks == xK_q = return ([EvCmdClose w], xstateF)
                 | ks == xK_Tab || ks == xK_space = return ([EvCmdFocusNext], xstateF)
+                | ks == xK_grave = return ([EvCmdFocusPrev], xstateF)
                 | ks == xK_Super_L || ks == xK_Super_R = do
                     -- todo match modMask
                     putStrLn "mod down"

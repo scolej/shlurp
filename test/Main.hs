@@ -1,6 +1,11 @@
 import Shlurp
 import Test.HUnit
 
+-- todo, missing tests
+--
+-- focus change wrapping
+-- backwards focus changing
+
 handleEvents :: WmState -> [Ev] -> WmState
 handleEvents = foldl (\wm0 e -> fst $ handleEvent e wm0)
 
