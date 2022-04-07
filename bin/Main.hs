@@ -194,7 +194,13 @@ convertEvent ro xstate MapRequestEvent{ev_window = w} = do
 convertEvent _ xstate MapNotifyEvent{ev_window = w} =
     return ([EvWasMapped w], xstate)
 -- todo configurereqeust will happen before map!
--- should we create on creat and not maprequest?
+-- should we create on create and not maprequest?
+-- yes.
+-- all other ways of doing it are hacky and crap.
+-- eg: if we receive an event for a window we don't have,
+-- could emit a 'request create window with full details' request,
+-- but then you have to queue up the action you were initially attempting.
+--
 convertEvent
     WmReadOnly{roDisplay = d}
     xstate
