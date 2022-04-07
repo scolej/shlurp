@@ -6,11 +6,16 @@ TODO
 must haves
 ----------
 
+cycle backwards
+
+preserve stack order during switching
+
 sling windows to hot spots with shortcuts
   maximize toggle
   half screen
   vert max
   horz max
+  move between screens
 
 close windows
 
@@ -27,10 +32,19 @@ bugs
 
 dead windows accumulating in focus history
 
+switching focus with kbd can leave stale state:
+clicking in unfocused win does nothing
+
 
 
 technical
 ---------
+
+log as hex
+
+reject configurerequests when drag active
+
+dedupe moves
 
 pull out modkey which is scattered everywhere
 
@@ -51,7 +65,7 @@ thing about how to write a log on keypress
 and then...
 -----------
 
-preserve stacking order while focus cycling
+mouse cursor change when hold mod; change based on pos in window
 
 scroll through windows under mouse
 

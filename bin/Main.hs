@@ -118,8 +118,8 @@ main = do
         conf =
             wcDefault
                 { wcSnapDist = 10
-                , wcSnapGap = 1
-                , wcBorderWidth = 1
+                , wcSnapGap = 2
+                , wcBorderWidth = 2
                 }
 
     (_, _, existingWindows) <- queryTree d root
