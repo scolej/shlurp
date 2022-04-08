@@ -6,10 +6,6 @@ TODO
 must haves
 ----------
 
-cycle backwards
-
-preserve stack order during switching
-
 sling windows to hot spots with shortcuts
   maximize toggle
   half screen
@@ -34,6 +30,7 @@ dead windows accumulating in focus history
 
 switching focus with kbd can leave stale state:
 clicking in unfocused win does nothing
+clicks should focus
 
 
 
@@ -58,12 +55,15 @@ think about event/command interface
 
 error logger
 
-thing about how to write a log on keypress
+think about how to write a log on keypress with state info,
+which is currently not trivial
 
 
 
 and then...
 -----------
+
+preserve stack order during switching
 
 mouse cursor change when hold mod; change based on pos in window
 

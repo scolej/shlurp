@@ -17,8 +17,9 @@ import System.IO
 
 import Shlurp
 
--- | Information we determine a single time at startup
--- and then carry around for the rest of the program.
+{- | Information we determine a single time at startup
+ and then carry around for the rest of the program.
+-}
 data WmReadOnly = WmReadOnly
     { roDisplay :: Display
     , roRoot :: Window
@@ -26,8 +27,9 @@ data WmReadOnly = WmReadOnly
     , roUnfocusedColour :: Pixel
     }
 
--- | State we use for keeping track of what we're doing with X
--- and how it might impact how we translate events.
+{- | State we use for keeping track of what we're doing with X
+ and how it might impact how we translate events.
+-}
 data XState = XState
     { xsDragState :: XDragState
     , xsNakedMod :: Bool
@@ -35,9 +37,12 @@ data XState = XState
 
 -- | Stages of drag.
 data XDragState
-    = NoDrag -- ^ there is no drag state at all
-    | NascentDrag WinId Integer Integer -- ^ the mouse button is pressed at some x & y (not yet released), this might become a drag, but it might just be a click
-    | DragInProgress -- ^ mouse button is down and mouse is moving around, drag is active!
+    = -- | there is no drag state at all
+      NoDrag
+    | -- | the mouse button is pressed at some x & y (not yet released), this might become a drag, but it might just be a click
+      NascentDrag WinId Integer Integer
+    | -- | mouse button is down and mouse is moving around, drag is active!
+      DragInProgress
 
 xInitState :: XState
 xInitState =
@@ -137,8 +142,9 @@ rect2bounds rect =
         b = t + fromIntegral (rect_height rect) - 1
      in Bounds l r t b
 
--- | Convert X's picture of window position to our idea of bounds.
--- X's window width/height does not include the border width.
+{- | Convert X's picture of window position to our idea of bounds.
+ X's window width/height does not include the border width.
+-}
 transformBounds :: CInt -> CInt -> CInt -> CInt -> CInt -> Bounds
 transformBounds x y w h bw =
     Bounds
@@ -148,8 +154,9 @@ transformBounds x y w h bw =
         , boundsB = fromIntegral $ y + h + 2 * bw - 1
         }
 
--- | Make some queries and build a new window.
--- If the window is an "override redirect" window, return nothing.
+{- | Make some queries and build a new window.
+ If the window is an "override redirect" window, return nothing.
+-}
 newWindow :: Display -> WinId -> IO (Maybe Win)
 newWindow d w = do
     attr <- getWindowAttributes d w
