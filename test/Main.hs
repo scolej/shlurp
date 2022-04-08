@@ -125,7 +125,7 @@ dragMove =
         newBounds = Bounds 30 120 30 120
      in "window can be drag moved"
             ~: [ "no initial requests" ~: cs1 ~?= []
-               , "requests move" ~: cs2 ~?= [ReqResize wid0 newBounds]
+               , "requests move" ~: cs2 ~?= [ReqMoveResize wid0 newBounds]
                , "no final requests" ~: cs3 ~?= []
                , "out of context move has no effect" ~: cs4 ~?= []
                ]
@@ -159,7 +159,7 @@ dragMoveResizeTest ::
 dragMoveResizeTest wm0 wid (x0, y0) (x1, y1) bs1 =
     let (wm1, _) = handleEvent (EvDragStart wid x0 y0) wm0
         (_, cs2) = handleEvent (EvDragMove x1 y1) wm1
-     in cs2 ~?= [ReqResize wid bs1]
+     in cs2 ~?= [ReqMoveResize wid bs1]
 
 -- | Test cases for snapping between two windows.
 snap2Wins :: Test
@@ -283,6 +283,16 @@ windowResized =
                , "no requests" ~: cs1 ~?= []
                ]
 
+noConfigureWhileDragging :: Test
+noConfigureWhileDragging =
+    let (wm1, _) = handleEvent (EvDragStart wid0 0 0) wmTwoWindows
+        (_, cs2) = handleEvent (EvWantsResize wid0 0 0) wm1
+        (_, cs3) = handleEvent (EvWantsMove wid0 0 0) wm1
+     in "no configures while dragging"
+            ~: [ "resize not forwarded" ~: cs2 ~?= []
+               , "move not forwarded" ~: cs3 ~?= []
+               ]
+
 wm3Windows :: WmState
 wm3Windows =
     wmBlankState
@@ -391,6 +401,7 @@ allTests =
         , focusFollowsMouse2
         , dragMove
         , windowResized
+        , noConfigureWhileDragging
         , snap2Wins
         , snap3Wins
         , resizeAWindow

@@ -199,23 +199,23 @@ focusHistoryNew wm0 wids =
 -}
 handleEvent :: Ev -> WmState -> (WmState, [Request])
 handleEvent (EvWantsMap win) wm0 =
-    let wid = winId win in (addWindow win wm0, [ReqManage wid, ReqMap wid])
-handleEvent (EvWasMapped wid) wm0 = (setMapped wid wm0, [])
+    let wid = winId win
+     in (addWindow win wm0, [ReqManage wid, ReqMap wid])
+handleEvent (EvWasMapped wid) wm0 =
+    (setMapped wid wm0, [])
 handleEvent (EvWasDestroyed wid) wm0 =
     -- todo remove from ring
     let ws0 = wmWindows wm0
         ws1 = filter (\w -> winId w /= wid) ws0
      in (wm0{wmWindows = ws1}, [])
--- todo it would be nice not to have to do this is focus is already on the
--- window which was entered. but if the window has focus when we start up
--- but haven't got that into our state yet it all breaks...
-
-handleEvent (EvMouseEntered wid) wm0 = (wm0, [ReqFocus wid])
+handleEvent (EvMouseEntered wid) wm0 =
+    (wm0, [ReqFocus wid])
 handleEvent (EvFocusIn wid) wm0 =
     let newHistory = focusHistoryNew wm0 [wid]
         reqs = [ReqStyleFocused wid]
      in (wm0{wmFocusHistory = newHistory}, reqs)
-handleEvent (EvFocusOut wid) wm0 = (wm0, [ReqStyleUnfocused wid])
+handleEvent (EvFocusOut wid) wm0 =
+    (wm0, [ReqStyleUnfocused wid])
 handleEvent (EvDragStart wid x y) wm0 =
     let mw = findWindow wm0 wid
         hf = wcHandleFrac $ wmConf wm0
@@ -226,48 +226,54 @@ handleEvent (EvDragStart wid x y) wm0 =
             return $ DragResize wid x y hand bs
      in (wm0{wmDragResize = ds}, [])
 handleEvent (EvDragMove x y) wm0 =
-    let ds = wmDragResize wm0
-     in -- todo if we just maybe for drag resize, can do better here
-        case ds of
-            Just (DragResize wid x0 y0 hand origBounds) ->
-                let dx = x - x0
-                    dy = y - y0
-                    (sl, sr, st, sb) = case hand of
-                        ResizeHandle HL HL -> (1, 0, 1, 0)
-                        ResizeHandle HL HM -> (1, 0, 0, 0)
-                        ResizeHandle HL HH -> (1, 0, 0, 1)
-                        ResizeHandle HM HL -> (0, 0, 1, 0)
-                        ResizeHandle HM HM -> (1, 1, 1, 1)
-                        ResizeHandle HM HH -> (0, 0, 0, 1)
-                        ResizeHandle HH HL -> (0, 1, 1, 0)
-                        ResizeHandle HH HM -> (0, 1, 0, 0)
-                        ResizeHandle HH HH -> (0, 1, 0, 1)
-                    delta4 = (sl * dx, sr * dx, st * dy, sb * dy)
-                    newBounds = origBounds `boundsAdd4` delta4
-                    otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
-                    otherBounds = map winBounds otherWins ++ wmScreenBounds wm0
-                    snappedBounds =
-                        snapBounds
-                            (wmConf wm0)
-                            otherBounds
-                            (hand == ResizeHandle HM HM)
-                            newBounds
-                 in (wm0, [ReqMoveResize wid snappedBounds])
-            Nothing -> (wm0, [])
-handleEvent EvDragFinish wm0 = (wm0{wmDragResize = Nothing}, [])
+    let reqs = maybeToList $ do
+            ds <- wmDragResize wm0
+            let (DragResize wid x0 y0 hand origBounds) = ds
+                dx = x - x0
+                dy = y - y0
+                (sl, sr, st, sb) = case hand of
+                    ResizeHandle HL HL -> (1, 0, 1, 0)
+                    ResizeHandle HL HM -> (1, 0, 0, 0)
+                    ResizeHandle HL HH -> (1, 0, 0, 1)
+                    ResizeHandle HM HL -> (0, 0, 1, 0)
+                    ResizeHandle HM HM -> (1, 1, 1, 1)
+                    ResizeHandle HM HH -> (0, 0, 0, 1)
+                    ResizeHandle HH HL -> (0, 1, 1, 0)
+                    ResizeHandle HH HM -> (0, 1, 0, 0)
+                    ResizeHandle HH HH -> (0, 1, 0, 1)
+                delta4 = (sl * dx, sr * dx, st * dy, sb * dy)
+                newBounds = origBounds `boundsAdd4` delta4
+                otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
+                otherBounds = map winBounds otherWins ++ wmScreenBounds wm0
+                snappedBounds = snapBounds (wmConf wm0) otherBounds (hand == ResizeHandle HM HM) newBounds
+            return $ ReqMoveResize wid snappedBounds
+     in (wm0, reqs)
+handleEvent EvDragFinish wm0 =
+    (wm0{wmDragResize = Nothing}, [])
 handleEvent (EvWasResized wid bounds) wm0 =
     let ws0 = wmWindows wm0
         u w = if winId w == wid then w{winBounds = bounds} else w
         wm1 = wm0{wmWindows = map u ws0}
      in (wm1, [])
-handleEvent (EvWantsMove wid x y) wm0 = (wm0, [ReqMove wid x y])
-handleEvent (EvWantsResize wid w h) wm0 = (wm0, [ReqResize wid w h])
+handleEvent (EvWantsMove wid x y) wm0 =
+    ( wm0
+    , if resizeInProgress wm0 wid
+        then []
+        else [ReqMove wid x y]
+    )
+handleEvent (EvWantsResize wid w h) wm0 =
+    ( wm0
+    , if resizeInProgress wm0 wid
+        then []
+        else [ReqResize wid w h]
+    )
 -- todo this event -> action mapping does not belong here
 handleEvent (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
     | button == 3 = (wm0, [ReqLower wid])
     | otherwise = (wm0, [])
-handleEvent (EvCmdClose wid) wm0 = (wm0, [ReqClose wid])
+handleEvent (EvCmdClose wid) wm0 =
+    (wm0, [ReqClose wid])
 handleEvent EvCmdFocusNext wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
@@ -284,7 +290,15 @@ handleEvent EvCmdFocusPrev wm0 =
             Just foc -> [ReqFocus foc, ReqRaise foc]
             Nothing -> []
         )
-handleEvent EvCmdFocusFinished wm0 = (finishFocusChange wm0, [])
+handleEvent EvCmdFocusFinished wm0 =
+    (finishFocusChange wm0, [])
+
+-- | Determines if there is currently a resize in progress for the given window.
+resizeInProgress :: WmState -> WinId -> Bool
+resizeInProgress wm wid = fromMaybe False $ do
+    win <- findWindow wm wid
+    dr <- wmDragResize wm
+    return $ winId win == drWin dr
 
 {- | Finish cycling focus.
  Recall the focus-history when we started,
@@ -335,8 +349,6 @@ setMapped wid wm0 =
         f w = if winId w == wid then w{winMapped = True} else w
      in wm0{wmWindows = wins1}
 
--- todo revise author
-
 -- | Handles: low, middle and high.
 data CoHandle = HL | HM | HH
     deriving (Eq, Show)
@@ -371,9 +383,8 @@ grabWindowHandle ratio (Bounds l r t b) (x, y) =
 absMag :: Integer -> Integer -> Ordering
 absMag a b = abs a `compare` abs b
 
-{- | Finds the smallest offset which moves a given value to one of a set of
- snap values with a limit. If there is no such offset within the limit,
- then nothing is returned.
+{- | Finds the smallest offset which moves a given value to one of a set of snap values with a limit.
+If there is no such offset within the limit, then nothing is returned.
 -}
 maybeSnap ::
     -- | snap distance
@@ -387,8 +398,10 @@ maybeSnap ::
 maybeSnap d val =
     headMay . sortBy absMag . filter (\x -> abs x <= d) . map (\s -> s - val)
 
-{- | Finds the set of snap stops, in x and y, which the "low" edge may snap
- to, where "low" is left or top.
+{- | Finds the set of snap stops,
+in x and y,
+which the "low" edge may snap to,
+where "low" is left or top.
 -}
 snapStopsL :: Integer -> [Bounds] -> ([Integer], [Integer])
 snapStopsL g bs = (stopsX, stopsY)
@@ -396,8 +409,10 @@ snapStopsL g bs = (stopsX, stopsY)
     stopsX = concatMap (\(Bounds l r _ _) -> [l, r + g + 1]) bs
     stopsY = concatMap (\(Bounds _ _ t b) -> [t, b + g + 1]) bs
 
-{- | Finds the set of snap stops, in x and y, which the "high" edge may snap
- to, where "high" is right or bottom.
+{- | Finds the set of snap stops,
+in x and y,
+which the "high" edge may snap to,
+where "high" is right or bottom.
 -}
 snapStopsH :: Integer -> [Bounds] -> ([Integer], [Integer])
 snapStopsH g bs = (stopsX, stopsY)

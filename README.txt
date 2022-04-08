@@ -37,9 +37,9 @@ clicks should focus
 technical
 ---------
 
-log as hex
+todo revise author
 
-reject configurerequests when drag active
+log as hex
 
 dedupe moves
 

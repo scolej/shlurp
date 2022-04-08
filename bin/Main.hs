@@ -39,7 +39,9 @@ data XState = XState
 data XDragState
     = -- | there is no drag state at all
       NoDrag
-    | -- | the mouse button is pressed at some x & y (not yet released), this might become a drag, but it might just be a click
+    | -- | the mouse button is pressed at some x & y (not yet released),
+      -- this might become a drag,
+      -- but it might just be a click
       NascentDrag WinId Integer Integer
     | -- | mouse button is down and mouse is moving around, drag is active!
       DragInProgress
@@ -219,18 +221,16 @@ convertEvent
         , ev_height = h
         , ev_value_mask = vm
         } = do
-        -- simply pass through configure requests,
-        -- we don't have anything to say about them at the moment.
-        when ((fromIntegral vm .&. (cWX .|. cWY)) /= 0) $
-            do
-                putStrLn $ unwords ["move", show win, show (x, y)]
-                moveWindow d win (fromIntegral x) (fromIntegral y)
+        let move =
+                if ((fromIntegral vm .&. (cWX .|. cWY)) /= 0)
+                    then [EvWantsMove win (fromIntegral x) (fromIntegral y)]
+                    else []
         -- todo extract a "hasMaskBits" function
-        when ((fromIntegral vm .&. (cWWidth .|. cWHeight)) /= 0) $
-            do
-                putStrLn $ unwords ["resize", show win, show (w, h)]
-                resizeWindow d win (fromIntegral w) (fromIntegral h)
-        return ([], xstate)
+        let resize =
+                if ((fromIntegral vm .&. (cWWidth .|. cWHeight)) /= 0)
+                    then [EvWantsResize win (fromIntegral w) (fromIntegral h)]
+                    else []
+        return (move ++ resize, xstate)
 convertEvent _ xstate DestroyWindowEvent{ev_window = w} =
     return ([EvWasDestroyed w], xstate)
 convertEvent _ xstate CrossingEvent{ev_window = w} =
@@ -374,13 +374,22 @@ performReqs wc ro = mapM_ go
     go (ReqRaise wid) = raiseWindow d wid
     go (ReqLower wid) = lowerWindow d wid
     go (ReqClose wid) = destroyWindow d wid -- todo this does not seem to kill the process?
-    go (ReqResize wid (Bounds l r t b)) =
+    go (ReqMoveResize wid (Bounds l r t b)) =
         let bw = wcBorderWidth wc
             li = fromIntegral l
             ti = fromIntegral t
             wi = fromIntegral $ r - l - 2 * bw + 1
             hi = fromIntegral $ b - t - 2 * bw + 1
          in moveResizeWindow d wid li ti wi hi
+    go (ReqMove wid l t) =
+        let li = fromIntegral l
+            ti = fromIntegral t
+         in moveWindow d wid li ti
+    go (ReqResize wid w h) =
+        let bw = wcBorderWidth wc
+            wi = fromIntegral $ w - 2 * bw + 1
+            hi = fromIntegral $ h - 2 * bw + 1
+         in resizeWindow d wid wi hi
 
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do
