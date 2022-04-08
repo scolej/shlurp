@@ -26,6 +26,8 @@ keybind for lower to bottom
 bugs
 ----
 
+minimum window size
+
 dead windows accumulating in focus history
 
 switching focus with kbd can leave stale state:
@@ -38,8 +40,6 @@ technical
 ---------
 
 todo revise author
-
-log as hex
 
 dedupe moves
 

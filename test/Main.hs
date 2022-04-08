@@ -31,7 +31,6 @@ win0 :: Win
 win0 =
     Win
         { winId = wid0
-        , winName = "win 0"
         , winBounds = Bounds 0 10 0 10
         , winMapped = False
         }
@@ -40,7 +39,6 @@ win1 :: Win
 win1 =
     Win
         { winId = wid1
-        , winName = "win 1"
         , winBounds = Bounds 0 10 0 10
         , winMapped = False
         }
@@ -49,7 +47,6 @@ win2 :: Win
 win2 =
     Win
         { winId = 2
-        , winName = "win 2"
         , winBounds = Bounds 0 10 0 10
         , winMapped = False
         }
@@ -132,15 +129,11 @@ dragMove =
 
 mappedWinAt :: WinId -> Bounds -> Win
 mappedWinAt wid bs =
-    Win{winId = wid, winName = "", winBounds = bs, winMapped = True}
-
--- The window's width & height as reported by X do not include the border
--- width. But the x & y position specify the top left position of the start
--- of the border. So on-screen, the window occupies a rectangle starting
--- from the reported x & y and extending to the width + 2 * the border
--- width.
---
--- But let's keep this shitty situation outside our garden.
+    Win
+        { winId = wid
+        , winBounds = bs
+        , winMapped = True
+        }
 
 -- | Makes a drag move/resize test case.
 dragMoveResizeTest ::

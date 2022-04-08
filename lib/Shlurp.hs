@@ -9,7 +9,6 @@ type WinId = Word64
 
 data Win = Win
     { winId :: WinId
-    , winName :: String
     , winBounds :: Bounds
     , winMapped :: Bool
     }
@@ -93,8 +92,8 @@ data DragResize = DragResize
     deriving (Show)
 
 {- | Ring which can be rotated forwards and backwards.
- Maybe not a real "ring"?
- But name seems to fit.
+Maybe not a real "ring"?
+But name seems to fit.
 
 This is pretty crappy and combines the worst of all worlds.
 A simple mod-wrapped int would be better.
@@ -245,8 +244,13 @@ handleEvent (EvDragMove x y) wm0 =
                 newBounds = origBounds `boundsAdd4` delta4
                 otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
                 otherBounds = map winBounds otherWins ++ wmScreenBounds wm0
-                snappedBounds = snapBounds (wmConf wm0) otherBounds (hand == ResizeHandle HM HM) newBounds
-            return $ ReqMoveResize wid snappedBounds
+                snappedBounds =
+                    snapBounds
+                        (wmConf wm0)
+                        otherBounds
+                        (hand == ResizeHandle HM HM)
+                        newBounds
+            return $ ReqMoveResize wid (minBounds snappedBounds)
      in (wm0, reqs)
 handleEvent EvDragFinish wm0 =
     (wm0{wmDragResize = Nothing}, [])
@@ -265,7 +269,9 @@ handleEvent (EvWantsResize wid w h) wm0 =
     ( wm0
     , if resizeInProgress wm0 wid
         then []
-        else [ReqResize wid w h]
+        else
+            let (w', h') = minSize w h
+             in [ReqResize wid w' h']
     )
 -- todo this event -> action mapping does not belong here
 handleEvent (EvMouseClicked wid button) wm0
@@ -292,6 +298,15 @@ handleEvent EvCmdFocusPrev wm0 =
         )
 handleEvent EvCmdFocusFinished wm0 =
     (finishFocusChange wm0, [])
+
+minBounds :: Bounds -> Bounds
+minBounds (Bounds l r t b) =
+    let (w, h) = minSize (r - l) (b - t)
+     in Bounds l (l + w) t (t + h)
+
+minSize :: Integer -> Integer -> (Integer, Integer)
+minSize w h =
+    (max w 20, max h 20) -- todo probably makes sense for it to be configurable
 
 -- | Determines if there is currently a resize in progress for the given window.
 resizeInProgress :: WmState -> WinId -> Bool
