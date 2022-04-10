@@ -26,7 +26,7 @@ keybind for lower to bottom
 bugs
 ----
 
-minimum window size
+emacs startup wtf => log events
 
 dead windows accumulating in focus history
 
@@ -40,8 +40,6 @@ technical
 ---------
 
 todo revise author
-
-dedupe moves
 
 pull out modkey which is scattered everywhere
 

@@ -222,7 +222,8 @@ convertEvent
         -- todo extract a "hasMaskBits" function
         let resize =
                 if (fromIntegral vm .&. (cWWidth .|. cWHeight)) /= 0
-                    then [EvWantsResize win (fromIntegral w) (fromIntegral h)]
+                    then -- todo : ( : ( emacs gets in a config-request loop
+                        [EvWantsResize win (fromIntegral $ w + 2 * 2 + 1) (fromIntegral $ h + 2 * 2 + 1)]
                     else []
         return (move ++ resize, xstate)
 convertEvent _ xstate DestroyWindowEvent{ev_window = w} =
@@ -233,16 +234,16 @@ convertEvent
     WmReadOnly{roDisplay = d}
     xstate@XState{xsDragState = dragState}
     e0@MotionEvent{} = do
-        ev <-
-            allocaXEvent
-                ( \ep ->
-                    let go e = do
-                            r <- checkTypedEvent d motionNotify ep
-                            putStrLn $ "read another with " ++ show r
-                            if r then getEvent ep >>= go else return e
-                     in go e0
-                )
-        let MotionEvent{ev_x = ex, ev_y = ey} = ev
+        -- ev <-
+        --     allocaXEvent
+        --         ( \ep ->
+        --             let go e = do
+        --                     r <- checkTypedEvent d motionNotify ep
+        --                     putStrLn $ "read another with " ++ show r
+        --                     if r then getEvent ep >>= go else return e
+        --              in go e0
+        --         )
+        let MotionEvent{ev_x = ex, ev_y = ey} = e0
         let x = fromIntegral ex
             y = fromIntegral ey
         return $ case dragState of
@@ -389,6 +390,7 @@ performReqs wc ro = mapM_ go
 
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do
+    putStrLn $ "got event " ++ show event
     (es, xstate1) <- convertEvent ro xstate0 event
     -- todo extract io?
     let go wm ev = do
