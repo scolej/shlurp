@@ -231,19 +231,9 @@ convertEvent _ xstate DestroyWindowEvent{ev_window = w} =
 convertEvent _ xstate CrossingEvent{ev_window = w} =
     return ([EvMouseEntered w], xstate)
 convertEvent
-    WmReadOnly{roDisplay = d}
+    _
     xstate@XState{xsDragState = dragState}
-    e0@MotionEvent{} = do
-        -- ev <-
-        --     allocaXEvent
-        --         ( \ep ->
-        --             let go e = do
-        --                     r <- checkTypedEvent d motionNotify ep
-        --                     putStrLn $ "read another with " ++ show r
-        --                     if r then getEvent ep >>= go else return e
-        --              in go e0
-        --         )
-        let MotionEvent{ev_x = ex, ev_y = ey} = e0
+    MotionEvent{ev_x = ex, ev_y = ey} = do
         let x = fromIntegral ex
             y = fromIntegral ey
         return $ case dragState of
@@ -403,7 +393,15 @@ handleOneEvent ro xstate0 event wm0 = do
 handleEventsForever :: WmReadOnly -> XState -> WmState -> IO (WmState, XState)
 handleEventsForever ro xstate0 wm0 = do
     let d = roDisplay ro
-    ev <- allocaXEvent (\ep -> nextEvent d ep >> getEvent ep)
+    let getNextEvent ep = do
+            nextEvent d ep
+            e0 <- getEvent ep
+            -- read off any queued motion notifications so we don't bother with stale ones
+            let go e = do
+                    r <- checkTypedEvent d motionNotify ep
+                    if r then getEvent ep >>= go else return e
+            if ev_event_type e0 == motionNotify then go e0 else return e0
+    ev <- allocaXEvent getNextEvent
     (wm1, xstate1) <- handleOneEvent ro xstate0 ev wm0
     printDebug wm1
     handleEventsForever ro xstate1 wm1
