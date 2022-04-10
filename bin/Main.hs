@@ -1,8 +1,10 @@
 module Main where
 
 import Control.Monad
+import Control.Monad.Extra
 import Data.Bits
 import Data.Maybe
+import Data.Tuple.Extra
 import Foreign.C.Types
 import Graphics.X11.Types
 import Graphics.X11.Xinerama
@@ -380,28 +382,25 @@ performReqs wc ro = mapM_ go
 
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do
-    putStrLn $ "got event " ++ show event
     (es, xstate1) <- convertEvent ro xstate0 event
-    -- todo extract io?
-    let go wm ev = do
-            let (wm1, reqs) = handleEvent ev wm
-            performReqs (wmConf wm) ro reqs
-            return wm1
-    wm1 <- foldM go wm0 es
+    -- one event can expand to multiple requests,
+    -- accumulate them all before actually handling them
+    let go (wm, acc) ev = second (acc ++) (handleEvent ev wm)
+        (wm1, reqs) = foldl go (wm0, []) es
+    performReqs (wmConf wm1) ro reqs
     return (wm1, xstate1)
 
 handleEventsForever :: WmReadOnly -> XState -> WmState -> IO (WmState, XState)
 handleEventsForever ro xstate0 wm0 = do
     let d = roDisplay ro
     let getNextEvent ep = do
-            nextEvent d ep
-            e0 <- getEvent ep
+            e0 <- nextEvent d ep >> getEvent ep
             -- read off any queued motion notifications so we don't bother with stale ones
-            let go e = do
-                    r <- checkTypedEvent d motionNotify ep
-                    if r then getEvent ep >>= go else return e
-            if ev_event_type e0 == motionNotify then go e0 else return e0
+            if ev_event_type e0 == motionNotify
+                then whileM (checkTypedEvent d motionNotify ep) >> getEvent ep
+                else return e0
     ev <- allocaXEvent getNextEvent
+    putStrLn $ "got event " ++ show ev
     (wm1, xstate1) <- handleOneEvent ro xstate0 ev wm0
     printDebug wm1
     handleEventsForever ro xstate1 wm1
