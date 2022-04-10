@@ -26,10 +26,6 @@ keybind for lower to bottom
 bugs
 ----
 
-emacs startup wtf => log events
-
-dead windows accumulating in focus history
-
 switching focus with kbd can leave stale state:
 clicking in unfocused win does nothing
 clicks should focus
@@ -40,8 +36,6 @@ technical
 ---------
 
 todo revise author
-
-pull out modkey which is scattered everywhere
 
 key binds
 

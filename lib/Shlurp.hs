@@ -75,8 +75,6 @@ data Request
     | ReqClose WinId
     deriving (Eq, Show)
 
--- todo there's "state tracking" and "commands"
-
 data DragResize = DragResize
     { -- | window id being dragged
       drWin :: WinId
@@ -132,8 +130,6 @@ data WmState = WmState
       wmFocusRing :: Maybe FocusCycleState
     , -- | current drag-resize state
       wmDragResize :: Maybe DragResize
-    , -- | configuration
-      wmConf :: WmConfig
     , -- | screen bounds
       wmScreenBounds :: [Bounds]
     }
@@ -169,7 +165,6 @@ wmBlankState =
         , wmFocusHistory = []
         , wmFocusRing = Nothing
         , wmDragResize = Nothing
-        , wmConf = wcDefault
         , wmScreenBounds = []
         }
 
@@ -196,35 +191,35 @@ focusHistoryNew wm0 wids =
 {- | Handle an event.
  Produces the new window state and any requests which should be forwarded.
 -}
-handleEvent :: Ev -> WmState -> (WmState, [Request])
-handleEvent (EvWantsMap win) wm0 =
+handleEvent :: WmConfig -> Ev -> WmState -> (WmState, [Request])
+handleEvent _ (EvWantsMap win) wm0 =
     let wid = winId win
      in (addWindow win wm0, [ReqManage wid, ReqMap wid])
-handleEvent (EvWasMapped wid) wm0 =
+handleEvent _ (EvWasMapped wid) wm0 =
     (setMapped wid wm0, [])
-handleEvent (EvWasDestroyed wid) wm0 =
+handleEvent _ (EvWasDestroyed wid) wm0 =
     -- todo remove from ring
     let ws0 = wmWindows wm0
         ws1 = filter (\w -> winId w /= wid) ws0
      in (wm0{wmWindows = ws1}, [])
-handleEvent (EvMouseEntered wid) wm0 =
+handleEvent _ (EvMouseEntered wid) wm0 =
     (wm0, [ReqFocus wid])
-handleEvent (EvFocusIn wid) wm0 =
+handleEvent _ (EvFocusIn wid) wm0 =
     let newHistory = focusHistoryNew wm0 [wid]
         reqs = [ReqStyleFocused wid]
      in (wm0{wmFocusHistory = newHistory}, reqs)
-handleEvent (EvFocusOut wid) wm0 =
+handleEvent _ (EvFocusOut wid) wm0 =
     (wm0, [ReqStyleUnfocused wid])
-handleEvent (EvDragStart wid x y) wm0 =
+handleEvent conf (EvDragStart wid x y) wm0 =
     let mw = findWindow wm0 wid
-        hf = wcHandleFrac $ wmConf wm0
+        hf = wcHandleFrac $ conf
         ds = do
             win <- mw
             let bs = winBounds win
                 hand = grabWindowHandle hf bs (x, y)
             return $ DragResize wid x y hand bs
      in (wm0{wmDragResize = ds}, [])
-handleEvent (EvDragMove x y) wm0 =
+handleEvent conf (EvDragMove x y) wm0 =
     let reqs = maybeToList $ do
             ds <- wmDragResize wm0
             let (DragResize wid x0 y0 hand origBounds) = ds
@@ -246,26 +241,26 @@ handleEvent (EvDragMove x y) wm0 =
                 otherBounds = map winBounds otherWins ++ wmScreenBounds wm0
                 snappedBounds =
                     snapBounds
-                        (wmConf wm0)
+                        conf
                         otherBounds
                         (hand == ResizeHandle HM HM)
                         newBounds
             return $ ReqMoveResize wid (minBounds snappedBounds)
      in (wm0, reqs)
-handleEvent EvDragFinish wm0 =
+handleEvent _ EvDragFinish wm0 =
     (wm0{wmDragResize = Nothing}, [])
-handleEvent (EvWasResized wid bounds) wm0 =
+handleEvent _ (EvWasResized wid bounds) wm0 =
     let ws0 = wmWindows wm0
         u w = if winId w == wid then w{winBounds = bounds} else w
         wm1 = wm0{wmWindows = map u ws0}
      in (wm1, [])
-handleEvent (EvWantsMove wid x y) wm0 =
+handleEvent _ (EvWantsMove wid x y) wm0 =
     ( wm0
     , if resizeInProgress wm0 wid
         then []
         else [ReqMove wid x y]
     )
-handleEvent (EvWantsResize wid w h) wm0 =
+handleEvent _ (EvWantsResize wid w h) wm0 =
     ( wm0
     , if resizeInProgress wm0 wid
         then []
@@ -274,13 +269,13 @@ handleEvent (EvWantsResize wid w h) wm0 =
              in [ReqResize wid w' h']
     )
 -- todo this event -> action mapping does not belong here
-handleEvent (EvMouseClicked wid button) wm0
+handleEvent _ (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
     | button == 3 = (wm0, [ReqLower wid])
     | otherwise = (wm0, [])
-handleEvent (EvCmdClose wid) wm0 =
+handleEvent _ (EvCmdClose wid) wm0 =
     (wm0, [ReqClose wid])
-handleEvent EvCmdFocusNext wm0 =
+handleEvent _ EvCmdFocusNext wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
      in ( wm1
@@ -288,7 +283,7 @@ handleEvent EvCmdFocusNext wm0 =
             Just foc -> [ReqFocus foc, ReqRaise foc]
             Nothing -> []
         )
-handleEvent EvCmdFocusPrev wm0 =
+handleEvent _ EvCmdFocusPrev wm0 =
     let wm1 = rotateRing ringRotateBack $ wmInitFocusRing wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
      in ( wm1
@@ -296,7 +291,7 @@ handleEvent EvCmdFocusPrev wm0 =
             Just foc -> [ReqFocus foc, ReqRaise foc]
             Nothing -> []
         )
-handleEvent EvCmdFocusFinished wm0 =
+handleEvent _ EvCmdFocusFinished wm0 =
     (finishFocusChange wm0, [])
 
 minBounds :: Bounds -> Bounds
