@@ -237,12 +237,11 @@ handleEvent conf (EvDragMove x y) wm0 =
                     ResizeHandle HH HH -> (0, 1, 0, 1)
                 delta4 = (sl * dx, sr * dx, st * dy, sb * dy)
                 newBounds = origBounds `boundsAdd4` delta4
-                otherWins = filter (\w -> winId w /= wid) $ wmWindows wm0
-                otherBounds = map winBounds otherWins ++ wmScreenBounds wm0
                 snappedBounds =
-                    snapBounds
+                    snapWindowBounds
                         conf
-                        otherBounds
+                        wm0
+                        wid
                         (hand == ResizeHandle HM HM)
                         newBounds
             return $ ReqMoveResize wid (minBounds snappedBounds)
@@ -392,6 +391,12 @@ grabWindowHandle ratio (Bounds l r t b) (x, y) =
 
 absMag :: Integer -> Integer -> Ordering
 absMag a b = abs a `compare` abs b
+
+snapWindowBounds :: WmConfig -> WmState -> WinId -> Bool -> Bounds -> Bounds
+snapWindowBounds conf wm wid preserveSize bs =
+    let otherWins = filter (\w -> winId w /= wid) $ wmWindows wm
+        otherBounds = map winBounds otherWins ++ wmScreenBounds wm
+     in snapBounds conf otherBounds preserveSize bs
 
 {- | Finds the smallest offset which moves a given value to one of a set of snap values with a limit.
 If there is no such offset within the limit, then nothing is returned.

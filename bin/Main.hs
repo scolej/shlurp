@@ -16,6 +16,7 @@ import Graphics.X11.Xlib.Types
 import Graphics.X11.Xlib.Window
 import Numeric
 import System.IO
+import System.Process
 
 import Shlurp
 
@@ -106,8 +107,12 @@ main = do
     grab xK_q modMask
     grab xK_Tab modMask
     grab xK_space modMask
+    grab xK_Return modMask
     grab modKeyL 0
     grab modKeyR 0
+
+    -- todo it would be nice to use sxhkd;
+    -- but grabbing raw mods means we can't bind mod4 over there :(
 
     let cm = defaultColormap d (defaultScreen d)
         getColour hex = color_pixel . fst <$> allocNamedColor d cm hex

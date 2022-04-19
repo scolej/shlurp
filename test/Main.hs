@@ -7,7 +7,7 @@ import Test.HUnit
 -- backwards focus changing
 
 handleEvents :: WmState -> [Ev] -> WmState
-handleEvents = foldl (\wm0 e -> fst $ handleEvent e wm0)
+handleEvents = foldl (\wm0 e -> fst $ handleEvent wcDefault e wm0)
 
 -- | Sequence events with assertions at each stage.
 sequenceTests ::
@@ -19,7 +19,7 @@ sequenceTests ::
     Test
 sequenceTests wmInit ts =
     let go (wm0, acc) (e, t) =
-            let (wm1, cs) = handleEvent e wm0 in (wm1, test (t wm1 cs) : acc)
+            let (wm1, cs) = handleEvent wcDefault e wm0 in (wm1, test (t wm1 cs) : acc)
      in test . reverse . snd $ foldl go (wmInit, []) ts
 
 wid0, wid1, wid2 :: WinId
@@ -83,7 +83,7 @@ mapsWindow =
 windowDestroyed :: Test
 windowDestroyed =
     let wm0 = wmTwoWindows
-        (wm1, cs1) = handleEvent (EvWasDestroyed wid0) wm0
+        (wm1, cs1) = handleEvent wcDefault (EvWasDestroyed wid0) wm0
      in "window desroyed"
             ~: [ "window is gone" ~: findWindow wm1 wid0 ~?= Nothing
                , "no further requests" ~: cs1 ~?= []
@@ -93,8 +93,8 @@ windowDestroyed =
 focusFollowsMouse1 :: Test
 focusFollowsMouse1 =
     let wm0 = wmTwoWindows
-        (wm1, cs1) = handleEvent (EvMouseEntered wid1) wm0
-        (wm2, cs2) = handleEvent (EvFocusIn wid1) wm1
+        (wm1, cs1) = handleEvent wcDefault (EvMouseEntered wid1) wm0
+        (wm2, cs2) = handleEvent wcDefault (EvFocusIn wid1) wm1
      in "focus change"
             ~: [ "window 0 focused" ~: wmFocused wm0 ~?= Just wid0
                , "requests new focus" ~: cs1 ~?= [ReqFocus wid1]
@@ -105,7 +105,7 @@ focusFollowsMouse1 =
 focusFollowsMouse2 :: Test
 focusFollowsMouse2 =
     let wm0 = wmTwoWindows
-        (wm1, cs1) = handleEvent (EvMouseEntered wid0) wm0
+        (wm1, cs1) = handleEvent wcDefault (EvMouseEntered wid0) wm0
      in "no focus change"
             ~: [ "window 0 focused" ~: wmFocused wm0 ~?= Just wid0
                , "we still emit a request" ~: cs1 ~?= [ReqFocus wid0]
@@ -115,10 +115,10 @@ focusFollowsMouse2 =
 dragMove :: Test
 dragMove =
     let wm0 = wmBlankState{wmWindows = [mappedWinAt 0 (Bounds 10 100 10 100)]}
-        (wm1, cs1) = handleEvent (EvDragStart 0 45 45) wm0
-        (wm2, cs2) = handleEvent (EvDragMove 65 65) wm1
-        (wm3, cs3) = handleEvent EvDragFinish wm2
-        (_, cs4) = handleEvent (EvDragMove 99 99) wm3
+        (wm1, cs1) = handleEvent wcDefault (EvDragStart 0 45 45) wm0
+        (wm2, cs2) = handleEvent wcDefault (EvDragMove 65 65) wm1
+        (wm3, cs3) = handleEvent wcDefault EvDragFinish wm2
+        (_, cs4) = handleEvent wcDefault (EvDragMove 99 99) wm3
         newBounds = Bounds 30 120 30 120
      in "window can be drag moved"
             ~: [ "no initial requests" ~: cs1 ~?= []
@@ -150,8 +150,8 @@ dragMoveResizeTest ::
     -- | a test case
     Test
 dragMoveResizeTest wm0 wid (x0, y0) (x1, y1) bs1 =
-    let (wm1, _) = handleEvent (EvDragStart wid x0 y0) wm0
-        (_, cs2) = handleEvent (EvDragMove x1 y1) wm1
+    let (wm1, _) = handleEvent wcDefault (EvDragStart wid x0 y0) wm0
+        (_, cs2) = handleEvent wcDefault (EvDragMove x1 y1) wm1
      in cs2 ~?= [ReqMoveResize wid bs1]
 
 -- | Test cases for snapping between two windows.
@@ -268,7 +268,7 @@ windowResized :: Test
 windowResized =
     let wm0 = wmTwoWindows
         bs = Bounds 20 220 30 330
-        (wm1, cs1) = handleEvent (EvWasResized wid0 bs) wm0
+        (wm1, cs1) = handleEvent wcDefault (EvWasResized wid0 bs) wm0
         Just win = findWindow wm1 wid0
         bounds1 = winBounds win
      in "window is resized"
@@ -278,9 +278,9 @@ windowResized =
 
 noConfigureWhileDragging :: Test
 noConfigureWhileDragging =
-    let (wm1, _) = handleEvent (EvDragStart wid0 0 0) wmTwoWindows
-        (_, cs2) = handleEvent (EvWantsResize wid0 0 0) wm1
-        (_, cs3) = handleEvent (EvWantsMove wid0 0 0) wm1
+    let (wm1, _) = handleEvent wcDefault (EvDragStart wid0 0 0) wmTwoWindows
+        (_, cs2) = handleEvent wcDefault (EvWantsResize wid0 0 0) wm1
+        (_, cs3) = handleEvent wcDefault (EvWantsMove wid0 0 0) wm1
      in "no configures while dragging"
             ~: [ "resize not forwarded" ~: cs2 ~?= []
                , "move not forwarded" ~: cs3 ~?= []
