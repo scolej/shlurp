@@ -3,6 +3,7 @@ module Shlurp where
 import Data.List
 import Data.Maybe
 import Data.Word
+import Debug.Trace
 import Safe
 
 type WinId = Word64
@@ -57,8 +58,12 @@ data Ev
       EvCmdFocusPrev
     | -- | indicate that we've finished switching focus: raise current focused win to top of focus stack
       EvCmdFocusFinished
+    | EvCmdMaximize WinId
     deriving (Eq, Show)
 
+{- | A request from window-manager-land to the outside world:
+window-manager wants something to happen.
+-}
 data Request
     = ReqFocus WinId
     | ReqMap WinId
@@ -267,6 +272,9 @@ handleEvent _ (EvWantsResize wid w h) wm0 =
             let (w', h') = minSize w h -- todo should snap here; but can't because need x & y which we may not have; may not even have the window yet ... create on create?
              in [ReqResize wid w' h']
     )
+handleEvent _ (EvCmdMaximize wid) wm0 =
+    let bs = containingScreenBounds wm0 wid
+     in (wm0, [ReqMoveResize wid bs])
 -- todo this event -> action mapping does not belong here
 handleEvent _ (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
@@ -292,6 +300,24 @@ handleEvent _ EvCmdFocusPrev wm0 =
         )
 handleEvent _ EvCmdFocusFinished wm0 =
     (finishFocusChange wm0, [])
+
+containingScreenBounds :: WmState -> WinId -> Bounds
+containingScreenBounds wm wid =
+    let screens = wmScreenBounds wm
+     in fromMaybe (head screens) $ do
+            win <- findWindow wm wid
+            let centre = boundsCentre (winBounds win)
+            find (boundsContains centre) screens
+
+boundsCentre :: Bounds -> (Integer, Integer)
+boundsCentre (Bounds l r t b) =
+    ( (r + l) `quot` 2
+    , (b + t) `quot` 2
+    )
+
+boundsContains :: (Integer, Integer) -> Bounds -> Bool
+boundsContains (x, y) (Bounds l r t b) =
+    x >= l && x <= r && y >= t && y <= b
 
 minBounds :: Bounds -> Bounds
 minBounds (Bounds l r t b) =

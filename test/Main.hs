@@ -385,6 +385,34 @@ mruFocusSwitching =
                     )
                 ]
 
+maximize :: Test
+maximize =
+    let screen0 = Bounds 0 800 0 640
+        screen1 = Bounds 801 1000 10 500
+        w0 =
+            Win
+                { winId = 0
+                , winBounds = Bounds 0 10 0 10
+                , winMapped = True
+                }
+        w1 =
+            Win
+                { winId = 1
+                , winBounds = Bounds 850 900 15 300
+                , winMapped = True
+                }
+        wm0 =
+            wmBlankState
+                { wmWindows = [w0, w1]
+                , wmScreenBounds = [screen0, screen1]
+                }
+        (wm1, reqs1) = handleEvent wcDefault (EvCmdMaximize 0) wm0
+        (_, reqs2) = handleEvent wcDefault (EvCmdMaximize 1) wm1
+     in "maximize windows"
+            ~: [ "screen 1" ~: reqs1 ~?= [ReqMoveResize 0 screen0]
+               , "screen 2" ~: reqs2 ~?= [ReqMoveResize 1 screen1]
+               ]
+
 allTests :: Test
 allTests =
     TestList
@@ -400,6 +428,7 @@ allTests =
         , resizeAWindow
         , resizeSnap
         , mruFocusSwitching
+        , maximize
         ]
 
 main :: IO ()

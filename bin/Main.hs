@@ -80,8 +80,10 @@ keyBinds =
     , (xK_space, modMask, BindActWm EvCmdFocusNext)
     , (xK_grave, modMask, BindActWm EvCmdFocusPrev)
     , (xK_q, modMask, BindActWin EvCmdClose)
+    , (xK_m, modMask, BindActWin EvCmdMaximize)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
     , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
+    , (xK_e, modMask, BindActIO $ void (spawnProcess "e" []))
     ]
 
 conf :: WmConfig
