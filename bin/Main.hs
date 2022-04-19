@@ -2,6 +2,7 @@ module Main where
 
 import Control.Monad.Extra
 import Data.Bits
+import Data.List
 import Data.Maybe
 import Data.Tuple.Extra
 import Foreign.C.Types
@@ -67,6 +68,22 @@ modKeyL, modKeyR :: KeySym
 modKeyL = xK_Super_L
 modKeyR = xK_Super_R
 
+-- todo this is kinda crappy
+data BindAction
+    = BindActWm Ev
+    | BindActWin (WinId -> Ev)
+    | BindActIO (IO ())
+
+keyBinds :: [(KeySym, KeyMask, BindAction)]
+keyBinds =
+    [ (xK_Tab, modMask, BindActWm EvCmdFocusNext)
+    , (xK_space, modMask, BindActWm EvCmdFocusNext)
+    , (xK_grave, modMask, BindActWm EvCmdFocusPrev)
+    , (xK_q, modMask, BindActWin EvCmdClose)
+    , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
+    , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
+    ]
+
 conf :: WmConfig
 conf =
     wcDefault
@@ -104,11 +121,9 @@ main = do
     let grab sym mask = do
             kc <- keysymToKeycode d sym
             grabKey d kc mask root False grabModeAsync grabModeAsync
-    grab xK_q modMask
-    grab xK_p modMask
-    grab xK_Tab modMask
-    grab xK_space modMask
-    grab xK_Return modMask
+        grab1 (sym, mask, _) = grab sym mask
+
+    mapM_ grab1 keyBinds
     grab modKeyL 0
     grab modKeyR 0
 
@@ -290,16 +305,14 @@ convertEvent
             xstateT = xstate0{xsNakedMod = True}
             down
                 | ks == xK_q = return ([EvCmdClose w], xstateF)
-                | ks == xK_p = do
-                    _ <- spawnProcess "dmenu_run" []
-                    return ([], xstateF)
-                | ks == xK_Return = do
-                    _ <- spawnProcess "st" []
-                    return ([], xstateF)
-                | ks == xK_Tab || ks == xK_space = return ([EvCmdFocusNext], xstateF)
-                | ks == xK_grave = return ([EvCmdFocusPrev], xstateF)
                 | ks == modKeyL || ks == modKeyR = return ([], xstateT)
-                | otherwise = return ([], xstateF)
+                | otherwise =
+                    let mba = (\(_, _, a) -> a) <$> find (\(sym, _, _) -> sym == ks) keyBinds
+                     in case mba of
+                            Just (BindActWm ev) -> return ([ev], xstateF)
+                            Just (BindActWin f) -> return ([f w], xstateF)
+                            Just (BindActIO io) -> io >> return ([], xstateF)
+                            Nothing -> return ([], xstateF)
             up
                 | ks == modKeyL || ks == modKeyR = do
                     if xsNakedMod xstate0
