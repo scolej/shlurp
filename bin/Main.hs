@@ -105,6 +105,7 @@ main = do
             kc <- keysymToKeycode d sym
             grabKey d kc mask root False grabModeAsync grabModeAsync
     grab xK_q modMask
+    grab xK_p modMask
     grab xK_Tab modMask
     grab xK_space modMask
     grab xK_Return modMask
@@ -289,6 +290,12 @@ convertEvent
             xstateT = xstate0{xsNakedMod = True}
             down
                 | ks == xK_q = return ([EvCmdClose w], xstateF)
+                | ks == xK_p = do
+                    _ <- spawnProcess "dmenu_run" []
+                    return ([], xstateF)
+                | ks == xK_Return = do
+                    _ <- spawnProcess "st" []
+                    return ([], xstateF)
                 | ks == xK_Tab || ks == xK_space = return ([EvCmdFocusNext], xstateF)
                 | ks == xK_grave = return ([EvCmdFocusPrev], xstateF)
                 | ks == modKeyL || ks == modKeyR = return ([], xstateT)

@@ -264,7 +264,7 @@ handleEvent _ (EvWantsResize wid w h) wm0 =
     , if resizeInProgress wm0 wid
         then []
         else
-            let (w', h') = minSize w h
+            let (w', h') = minSize w h -- todo should snap here; but can't because need x & y which we may not have; may not even have the window yet ... create on create?
              in [ReqResize wid w' h']
     )
 -- todo this event -> action mapping does not belong here
