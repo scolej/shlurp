@@ -1,86 +1,47 @@
-TODO
-====
+Shlurp
+======
+
+(the sound the windows make as they snap into place)
+
+A basic, stacking X11 window manager, written in the One True Language.
 
 
 
-must haves
-----------
+Why would I use this?
+---------------------
 
-sling windows to hot spots with shortcuts
-  maximize toggle
-  half screen
-  vert max
-  horz max
-  move between screens
+- you want to be a DWM[1]/xmonad[2] hipster but you just can't handle
+  tiling-window managers no matter how hard you try
 
-toggleable borders
+- you crave that simple, solid, one-colour window border that refuses to
+  admit buttons, labels or decorations of any description
 
-===> USABLE WM!!
+- you wont't be satisfied unless you're configuring your wm be editing its
+  source and recompiling it
 
+- you want to switch between the two most recently focused windows with a
+  single key: the mod key. (a feature i've always wanted and never
+  encountered in the wild)
 
+- you have a high tolerance for sub-par haskell code
 
-bugs
-----
-
-switching focus with kbd can leave stale state:
-clicking in unfocused win does nothing
-clicks should focus
-
-when i spawn a term, it doesn't get focus.
-what about: an action which spawns a new prog which
-creates a brief window during which the next mapped window
-may take focus. but at all other times newly mapped windows
-may not take focus. hmmm. maybe newly mapped windows should
-just get focus.
+[1] https://dwm.suckless.org/
+[2] https://xmonad.org/
 
 
 
-technical
----------
-
-todo revise author
-
-generalized bindings, mouse / keys, eg: configurable from one place
-
-logging with levels
-
-think about event/command interface
-
-error logger
-
-think about how to write a log on keypress with state info,
-which is currently not trivial
-
-
-
-and then...
+How to use?
 -----------
 
-preserve stack order during switching
+(note: currently it needs xlib bindings with some additions which are not
+in upstream yet; ie: you can't build it.)
 
-mouse cursor change when hold mod; change based on pos in window
+If you're brave:
 
-scroll through windows under mouse
+    stack install
 
-minimize
+then in your `.xinitrc`:
 
-move window colour to conf
+    exec xshlurp
 
-ensure adapt to screen resize
-
-double click expand in dir
-
-desktops? configuration registers?
-
-window menu / list and selection.
-eg: hold mod4,
-get a visual menu with list of windows,
-click on them to focus/raise,
-right click to minimize
-
-multi-screen snap polish:
-shouldn't be able to snap to the outside of other screens bounds
-
-how to resize one-handed?
-
-can i bind mod4 l & r and still use sxhkd for mod4 binds?
+and then explore the source to discover and edit the key bindings :)
