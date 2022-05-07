@@ -13,11 +13,9 @@ sling windows to hot spots with shortcuts
   horz max
   move between screens
 
-close windows
-
-launch progs
-
 keybind for lower to bottom
+
+toggleable borders
 
 ===> USABLE WM!!
 
@@ -30,14 +28,23 @@ switching focus with kbd can leave stale state:
 clicking in unfocused win does nothing
 clicks should focus
 
+when i spawn a term, it doesn't get focus.
+what about: an action which spawns a new prog which
+creates a brief window during which the next mapped window
+may take focus. but at all other times newly mapped windows
+may not take focus. hmmm. maybe newly mapped windows should
+just get focus.
+
+still some weirdness with resizing emacs.
+if i maximize, sometimes it doesn't get quite there on first go.
+emacs fighting us with configures again???
+
 
 
 technical
 ---------
 
 todo revise author
-
-key binds
 
 generalized bindings, mouse / keys, eg: configurable from one place
 
@@ -63,8 +70,6 @@ scroll through windows under mouse
 
 minimize
 
-toggle border (might be a must for firefox context menus)
-
 move window colour to conf
 
 ensure adapt to screen resize
@@ -81,3 +86,7 @@ right click to minimize
 
 multi-screen snap polish:
 shouldn't be able to snap to the outside of other screens bounds
+
+how to resize one-handed?
+
+can i bind mod4 l & r and still use sxhkd for mod4 binds?

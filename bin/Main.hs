@@ -134,8 +134,8 @@ main = do
 
     let cm = defaultColormap d (defaultScreen d)
         getColour hex = color_pixel . fst <$> allocNamedColor d cm hex
-    focusedColour <- getColour "#5c0087"
-    unfocusedColour <- getColour "#2d0042"
+    focusedColour <- getColour "#94d2bd"
+    unfocusedColour <- getColour "#005f73"
 
     let ro =
             WmReadOnly
