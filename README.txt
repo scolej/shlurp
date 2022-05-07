@@ -13,8 +13,6 @@ sling windows to hot spots with shortcuts
   horz max
   move between screens
 
-keybind for lower to bottom
-
 toggleable borders
 
 ===> USABLE WM!!
@@ -34,10 +32,6 @@ creates a brief window during which the next mapped window
 may take focus. but at all other times newly mapped windows
 may not take focus. hmmm. maybe newly mapped windows should
 just get focus.
-
-still some weirdness with resizing emacs.
-if i maximize, sometimes it doesn't get quite there on first go.
-emacs fighting us with configures again???
 
 
 

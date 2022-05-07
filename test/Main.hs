@@ -5,6 +5,8 @@ import Test.HUnit
 --
 -- focus change wrapping
 -- backwards focus changing
+--
+-- lower emits lower and focus change and changes history
 
 handleEvents :: WmState -> [Ev] -> WmState
 handleEvents = foldl (\wm0 e -> fst $ handleEvent wcDefault e wm0)

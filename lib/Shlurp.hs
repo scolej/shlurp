@@ -59,6 +59,7 @@ data Ev
     | -- | indicate that we've finished switching focus: raise current focused win to top of focus stack
       EvCmdFocusFinished
     | EvCmdMaximize WinId
+    | EvCmdLower
     deriving (Eq, Show)
 
 {- | A request from window-manager-land to the outside world:
@@ -259,22 +260,27 @@ handleEvent _ (EvWasResized wid bounds) wm0 =
         wm1 = wm0{wmWindows = map u ws0}
      in (wm1, [])
 handleEvent _ (EvWantsMove wid x y) wm0 =
-    ( wm0
-    , if resizeInProgress wm0 wid
-        then []
-        else [ReqMove wid x y]
-    )
+    let reqs
+            | isJust (findWindow wm0 wid) = [] -- if we know about the window, it's been mapped, refuse the move
+            | otherwise = [ReqMove wid x y]
+     in (wm0, reqs)
 handleEvent _ (EvWantsResize wid w h) wm0 =
-    ( wm0
-    , if resizeInProgress wm0 wid
-        then []
-        else
-            let (w', h') = minSize w h -- todo should snap here; but can't because need x & y which we may not have; may not even have the window yet ... create on create?
-             in [ReqResize wid w' h']
-    )
+    let reqs
+            | isJust (findWindow wm0 wid) = [] -- if we know about the window, it's been mapped, refuse the resize
+            | otherwise =
+                let (w', h') = minSize w h -- todo should snap here; but can't because need x & y which we may not have; may not even have the window yet ... create on create?
+                 in [ReqResize wid w' h']
+     in (wm0, reqs)
 handleEvent _ (EvCmdMaximize wid) wm0 =
     let bs = containingScreenBounds wm0 wid
      in (wm0, [ReqMoveResize wid bs])
+handleEvent _ EvCmdLower wm0 =
+    case wmFocusHistory wm0 of
+        (wid : rest) ->
+            let fh1 = rest ++ [wid]
+                wm1 = wm0{wmFocusHistory = fh1}
+             in (wm1, [ReqLower wid, ReqFocus (head fh1)])
+        _ -> (wm0, [])
 -- todo this event -> action mapping does not belong here
 handleEvent _ (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
