@@ -91,8 +91,8 @@ conf :: WmConfig
 conf =
     wcDefault
         { wcSnapDist = 20
-        , wcSnapGap = 1
-        , wcBorderWidth = 2
+        , wcSnapGap = 3
+        , wcBorderWidth = 3
         }
 
 main :: IO ()
@@ -257,7 +257,7 @@ convertEvent
                 [ justIf (hasBits [cWX, cWY] vm) $
                     EvWantsMove win (fromIntegral x) (fromIntegral y)
                 , justIf (hasBits [cWWidth, cWHeight] vm) $
-                    let t d = fromIntegral d + 2 * wcBorderWidth conf + 1
+                    let t d = fromIntegral d + 2 * wcBorderWidth conf - 1
                      in EvWantsResize win (t w) (t h)
                 ]
          in return (catMaybes es, xstate)
@@ -449,7 +449,9 @@ showWindowBounds wm =
 
 printDebug :: WmState -> IO ()
 printDebug wm = do
-    showWindowBounds wm
+    putStrLn "windows and bounds"
+    showWindowBounds
+        wm
     putStrLn $
         unwords
             [ "focus history"

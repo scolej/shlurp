@@ -33,6 +33,10 @@ may take focus. but at all other times newly mapped windows
 may not take focus. hmmm. maybe newly mapped windows should
 just get focus.
 
+first map leaves windows outside the screen.
+maybe there's something wrong with border-width mapping
+that gets lost in translation.
+
 
 
 technical

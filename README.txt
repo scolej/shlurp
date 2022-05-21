@@ -16,7 +16,7 @@ Why would I use this?
 - you crave that simple, solid, one-colour window border that refuses to
   admit buttons, labels or decorations of any description
 
-- you wont't be satisfied unless you're configuring your wm be editing its
+- you wont't be satisfied unless you're configuring your wm by editing its
   source and recompiling it
 
 - you want to switch between the two most recently focused windows with a
