@@ -1,7 +1,7 @@
 module Shlurp (
     Bounds (..),
-    Win (..),
     WinId,
+    Win (..),
     Ev (..),
     Request (..),
     WmState (..),
@@ -124,6 +124,8 @@ data WmConfig = WmConfig
       wcBorderWidth :: Integer
     , -- | fraction of window width/height dedicated to resize handles
       wcHandleFrac :: Rational
+    , -- | how many pixels of movement with mouse pressed before a drag starts
+      wcDragThreshold :: Integer
     }
 
 wcDefault :: WmConfig
@@ -133,6 +135,7 @@ wcDefault =
         , wcSnapGap = 2
         , wcBorderWidth = 4
         , wcHandleFrac = 0.1
+        , wcDragThreshold = 5
         }
 
 wmBlankState :: WmState

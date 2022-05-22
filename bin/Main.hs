@@ -266,7 +266,7 @@ convertEvent _ _ xstate DestroyWindowEvent{ev_window = w} =
 convertEvent _ _ xstate CrossingEvent{ev_window = w} =
     return ([EvMouseEntered w], xstate)
 convertEvent
-    _
+    conf
     _
     xstate@XState{xsDragState = dragState}
     MotionEvent{ev_x = ex, ev_y = ey} = do
@@ -274,7 +274,7 @@ convertEvent
             y = fromIntegral ey
         return $ case dragState of
             NascentDrag win x0 y0 ->
-                if mag (x0, y0) (x, y) > 5 -- todo configurable drag dist threshold
+                if mag (x0, y0) (x, y) > (fromIntegral $ wcDragThreshold conf)
                     then
                         (
                             [ EvDragStart win x0 y0
