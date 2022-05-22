@@ -1,10 +1,26 @@
-module Shlurp where
+module Shlurp (
+    Bounds (..),
+    Win (..),
+    WinId,
+    Ev (..),
+    Request (..),
+    WmState (..),
+    WmConfig (..),
+    wcDefault,
+    wmBlankState,
+    handleEvent,
+    wmFocused,
+    wmMappedWindows,
+    findWindow,
+) where
 
 import Data.List
 import Data.Maybe
 import Data.Word
-import Debug.Trace
 import Safe
+
+import Bounds
+import Ring
 
 type WinId = Word64
 
@@ -15,27 +31,7 @@ data Win = Win
     }
     deriving (Eq, Show)
 
-data Bounds = Bounds
-    { boundsL :: Integer
-    , boundsR :: Integer
-    , boundsT :: Integer
-    , boundsB :: Integer
-    }
-    deriving (Eq, Show)
-
-boundsAdd :: Bounds -> (Integer, Integer) -> Bounds
-boundsAdd (Bounds l r t b) (x, y) = Bounds (l + x) (r + x) (t + y) (b + y)
-
-boundsAdd4 :: Bounds -> (Integer, Integer, Integer, Integer) -> Bounds
-boundsAdd4 (Bounds l r t b) (dl, dr, dt, db) =
-    Bounds (l + dl) (r + dr) (t + dt) (b + db)
-
-mul4 ::
-    (Integer, Integer) ->
-    (Integer, Integer, Integer, Integer) ->
-    (Integer, Integer, Integer, Integer)
-mul4 (x, y) (l, r, t, b) = (x * l, x * r, y * t, y * b)
-
+-- | An event that happened out in the world that we need to respond to.
 data Ev
     = EvWasMapped WinId
     | EvWantsMap Win
@@ -94,31 +90,6 @@ data DragResize = DragResize
       drInitBounds :: Bounds
     }
     deriving (Show)
-
-{- | Ring which can be rotated forwards and backwards.
-Maybe not a real "ring"?
-But name seems to fit.
-
-This is pretty crappy and combines the worst of all worlds.
-A simple mod-wrapped int would be better.
--}
-data Ring a = Ring [a] a [a]
-    deriving (Show)
-
-ringFromList :: [a] -> Ring a
-ringFromList [] = undefined
-ringFromList xs = Ring (reverse $ tail xs) (head xs) (tail xs)
-
-ringFocus :: Ring a -> a
-ringFocus (Ring _ x _) = x
-
-ringRotate :: Ring a -> Ring a
-ringRotate r@(Ring [] _ []) = r
-ringRotate (Ring as x bs) = Ring (x : init as) (head bs) (tail bs ++ [x])
-
-ringRotateBack :: Ring a -> Ring a
-ringRotateBack r@(Ring [] _ []) = r
-ringRotateBack (Ring as x bs) = Ring (tail as ++ [x]) (head as) (x : init bs)
 
 data FocusCycleState = FocusCycleState
     { -- | ring of ordering which we can rotate through
@@ -193,6 +164,17 @@ focusHistoryNew wm0 wids =
         allWids = map winId (wmWindows wm0)
         first = filter (`elem` allWids) (wids ++ history0) -- ensure we don't re-instate destroyed windows
      in nub (first ++ allWids)
+
+-- | Ensure a width/height don't become too small.
+minSize :: Integer -> Integer -> (Integer, Integer)
+minSize w h =
+    (max w 20, max h 20) -- todo probably makes sense for it to be configurable
+
+-- | Ensure some bounds don't become too small.
+minBounds :: Bounds -> Bounds
+minBounds (Bounds l r t b) =
+    let (w, h) = minSize (r - l) (b - t)
+     in Bounds l (l + w) t (t + h)
 
 {- | Handle an event.
  Produces the new window state and any requests which should be forwarded.
@@ -314,32 +296,6 @@ containingScreenBounds wm wid =
             win <- findWindow wm wid
             let centre = boundsCentre (winBounds win)
             find (boundsContains centre) screens
-
-boundsCentre :: Bounds -> (Integer, Integer)
-boundsCentre (Bounds l r t b) =
-    ( (r + l) `quot` 2
-    , (b + t) `quot` 2
-    )
-
-boundsContains :: (Integer, Integer) -> Bounds -> Bool
-boundsContains (x, y) (Bounds l r t b) =
-    x >= l && x <= r && y >= t && y <= b
-
-minBounds :: Bounds -> Bounds
-minBounds (Bounds l r t b) =
-    let (w, h) = minSize (r - l) (b - t)
-     in Bounds l (l + w) t (t + h)
-
-minSize :: Integer -> Integer -> (Integer, Integer)
-minSize w h =
-    (max w 20, max h 20) -- todo probably makes sense for it to be configurable
-
--- | Determines if there is currently a resize in progress for the given window.
-resizeInProgress :: WmState -> WinId -> Bool
-resizeInProgress wm wid = fromMaybe False $ do
-    win <- findWindow wm wid
-    dr <- wmDragResize wm
-    return $ winId win == drWin dr
 
 {- | Finish cycling focus.
  Recall the focus-history when we started,
