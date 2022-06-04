@@ -82,6 +82,33 @@ mapsWindow =
             )
         ]
 
+mapsWindowBoundsExceedScreen :: Test
+mapsWindowBoundsExceedScreen =
+    let wm0 =
+            wmBlankState
+                { wmWindows = []
+                , wmScreenBounds = [Bounds 0 800 0 640]
+                }
+        bigWin =
+            Win
+                { winId = 0
+                , winBounds = Bounds (-20) 820 (-20) 650
+                , winMapped = False
+                }
+     in sequenceTests
+            wm0
+            [
+                ( EvWantsMap bigWin
+                , \_ cs ->
+                    [ "requests resize then map" ~: cs
+                        ~?= [ ReqManage wid0
+                            , ReqMoveResize wid0 (Bounds 0 800 0 640)
+                            , ReqMap wid0
+                            ]
+                    ]
+                )
+            ]
+
 windowDestroyed :: Test
 windowDestroyed =
     let wm0 = wmTwoWindows
@@ -435,6 +462,7 @@ allTests :: Test
 allTests =
     TestList
         [ mapsWindow
+        , mapsWindowBoundsExceedScreen
         , windowDestroyed
         , focusFollowsMouse1
         , focusFollowsMouse2

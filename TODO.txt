@@ -33,10 +33,6 @@ may take focus. but at all other times newly mapped windows
 may not take focus. hmmm. maybe newly mapped windows should
 just get focus.
 
-first map leaves windows outside the screen.
-maybe there's something wrong with border-width mapping
-that gets lost in translation.
-
 remove windows from focus history when they're destroyed
 
 when using lower, and the next mru window is not under the mouse, we'll get
@@ -44,6 +40,11 @@ a spurious mouse-enter event which will steal the focus from where it
 should go. could probably handle this by not emitting a focus-change event
 to the WM until we have received a combo of enter & leave from X; then
 discard those triggered by the lower.
+
+border width affects context menu behaviour in firefox. anything more than
+2px (?) and the click which opens the context menu also triggers the menu
+item under the click! my guess: firefox creates the context menu window
+with absolute screen coords, and doesn't account for the border width.
 
 
 
@@ -58,8 +59,6 @@ logging with levels
 
 think about event/command interface
 
-error logger
-
 think about how to write a log on keypress with state info,
 which is currently not trivial
 
@@ -70,7 +69,7 @@ rethink bindings: BindAction
 is there a better way?
 
 rethink the configurerequest-maprequest lifecycle.
-some windows (firefox) will send confi
+some windows (firefox) will send config before map
 
 
 

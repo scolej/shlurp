@@ -17,7 +17,7 @@ module Shlurp (
 import Data.List
 import Data.Maybe
 import Data.Word
-import Safe
+import Safe hiding (at)
 
 import Bounds
 import Ring
@@ -179,13 +179,34 @@ minBounds (Bounds l r t b) =
     let (w, h) = minSize (r - l) (b - t)
      in Bounds l (l + w) t (t + h)
 
+-- | Clip any of the seconds bounds' edges to be inside the first bounds' edges.
+clipBounds :: Bounds -> Bounds -> Bounds
+clipBounds (Bounds al ar at ab) (Bounds bl br bt bb) =
+    Bounds
+        (if bl < al then al else bl)
+        (if br > ar then ar else br)
+        (if bt < at then at else bt)
+        (if bb > ab then ab else bb)
+
 {- | Handle an event.
- Produces the new window state and any requests which should be forwarded.
+Produces the new window state and any requests which should be forwarded.
 -}
 handleEvent :: WmConfig -> Ev -> WmState -> (WmState, [Request])
 handleEvent _ (EvWantsMap win) wm0 =
     let wid = winId win
-     in (addWindow win wm0, [ReqManage wid, ReqMap wid])
+        wb = winBounds win
+        maybeResize = do
+            homeScreen <- homeBounds (wmScreenBounds wm0) wb
+            if boundsContainsBounds wb homeScreen
+                then Nothing
+                else Just $ ReqMoveResize wid (clipBounds homeScreen wb)
+     in ( addWindow win wm0
+        , catMaybes
+            [ Just (ReqManage wid)
+            , maybeResize
+            , Just (ReqMap wid)
+            ]
+        )
 handleEvent _ (EvWasMapped wid) wm0 =
     (setMapped wid wm0, [])
 handleEvent _ (EvWasDestroyed wid) wm0 =
@@ -253,12 +274,12 @@ handleEvent _ (EvWantsResize wid w h) wm0 =
     let reqs
             | isJust (findWindow wm0 wid) = [] -- if we know about the window, it's been mapped, refuse the resize
             | otherwise =
-                let (w', h') = minSize w h -- todo should snap here; but can't because need x & y which we may not have; may not even have the window yet ... create on create?
+                let (w', h') = minSize w h
                  in [ReqResize wid w' h']
      in (wm0, reqs)
 handleEvent _ (EvCmdMaximize wid) wm0 =
     let bs = containingScreenBounds wm0 wid
-     in (wm0, [ReqMoveResize wid bs])
+     in (wm0, catMaybes [ReqMoveResize wid <$> bs])
 handleEvent _ EvCmdLower wm0 =
     case wmFocusHistory wm0 of
         (wid : rest) ->
@@ -292,17 +313,26 @@ handleEvent _ EvCmdFocusPrev wm0 =
 handleEvent _ EvCmdFocusFinished wm0 =
     (finishFocusChange wm0, [])
 
-containingScreenBounds :: WmState -> WinId -> Bounds
-containingScreenBounds wm wid =
+containingScreenBounds :: WmState -> WinId -> Maybe Bounds
+containingScreenBounds wm wid = do
     let screens = wmScreenBounds wm
-     in fromMaybe (head screens) $ do
-            win <- findWindow wm wid
-            let centre = boundsCentre (winBounds win)
-            find (boundsContains centre) screens
+    win <- findWindow wm wid
+    homeBounds screens (winBounds win)
+
+{- | Finds the bounds which "most appropriately" contains another bounds.
+For example, the bounds which has the greatest overlap, or whose centre is closest.
+The current implementation finds the bounds which contains the candidate bounds' centre,
+but it would be better to do something different so we can appropriately handle
+those windows which might map outside any screens' bounds. todo
+-}
+homeBounds :: [Bounds] -> Bounds -> Maybe Bounds
+homeBounds candidates b =
+    let centre = boundsCentre b
+     in find (boundsContains centre) candidates
 
 {- | Finish cycling focus.
- Recall the focus-history when we started,
- but prepend the newly focused window.
+Recall the focus-history when we started,
+but prepend the newly focused window.
 -}
 finishFocusChange :: WmState -> WmState
 finishFocusChange wm0 =
@@ -358,7 +388,7 @@ data ResizeHandle = ResizeHandle CoHandle CoHandle
     deriving (Eq, Show)
 
 {- | Decide which part of the window has been gripped based on its bounds,
- the handle ratio, and the group position.
+the handle ratio, and the group position.
 -}
 grabWindowHandle :: Rational -> Bounds -> (Integer, Integer) -> ResizeHandle
 grabWindowHandle ratio (Bounds l r t b) (x, y) =
@@ -404,8 +434,7 @@ maybeSnap ::
 maybeSnap d val =
     headMay . sortBy absMag . filter (\x -> abs x <= d) . map (\s -> s - val)
 
-{- | Finds the set of snap stops,
-in x and y,
+{- | Finds the set of snap stops, in x and y,
 which the "low" edge may snap to,
 where "low" is left or top.
 -}
@@ -415,8 +444,7 @@ snapStopsL g bs = (stopsX, stopsY)
     stopsX = concatMap (\(Bounds l r _ _) -> [l, r + g + 1]) bs
     stopsY = concatMap (\(Bounds _ _ t b) -> [t, b + g + 1]) bs
 
-{- | Finds the set of snap stops,
-in x and y,
+{- | Finds the set of snap stops, in x and y,
 which the "high" edge may snap to,
 where "high" is right or bottom.
 -}

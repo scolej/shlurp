@@ -30,3 +30,7 @@ boundsCentre (Bounds l r t b) =
 boundsContains :: (Integer, Integer) -> Bounds -> Bool
 boundsContains (x, y) (Bounds l r t b) =
     x >= l && x <= r && y >= t && y <= b
+
+boundsContainsBounds :: Bounds -> Bounds -> Bool
+boundsContainsBounds (Bounds l r t b) bs =
+    boundsContains (l, t) bs && boundsContains (r, b) bs
