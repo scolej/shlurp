@@ -37,6 +37,8 @@ first map leaves windows outside the screen.
 maybe there's something wrong with border-width mapping
 that gets lost in translation.
 
+remove windows from focus history when they're destroyed
+
 
 
 technical
@@ -54,6 +56,15 @@ error logger
 
 think about how to write a log on keypress with state info,
 which is currently not trivial
+
+understand the how grabbing raw mod-keys impacts things like sxhkd.
+why can't i bind mods and also bind mod-ret from sxhkd?
+
+rethink bindings: BindAction
+is there a better way?
+
+rethink the configurerequest-maprequest lifecycle.
+some windows (firefox) will send confi
 
 
 
