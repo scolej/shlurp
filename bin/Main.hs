@@ -23,6 +23,9 @@ import System.Process
 
 import Shlurp
 
+logMsgLns :: [String] -> IO ()
+logMsgLns = logMsg . intercalate "\n"
+
 -- | Log a message with a timestamp
 logMsg :: String -> IO ()
 logMsg msg = do
@@ -291,13 +294,8 @@ convertEvent
         return $ case dragState of
             NascentDrag win x0 y0 ->
                 if mag (x0, y0) (x, y) > (fromIntegral $ wcDragThreshold conf)
-                    then
-                        (
-                            [ EvDragStart win x0 y0
-                            , EvDragMove x y
-                            ]
-                        , xstate{xsDragState = DragInProgress}
-                        )
+                    then ( [ EvDragStart win x0 y0 , EvDragMove x y]
+                         , xstate{xsDragState = DragInProgress} )
                     else ([EvDragMove x y], xstate)
             DragInProgress -> ([EvDragMove x y], xstate)
             _ -> ([], xstate)
@@ -428,7 +426,7 @@ handleOneEvent :: WmConfig -> WmReadOnly -> XState -> Event -> WmState -> IO (Wm
 handleOneEvent conf ro xstate0 event wm0 = do
     (es, xstate1) <- convertEvent conf ro xstate0 event
     let estr = if null es then ["<nothing>"] else (map show es)
-    logMsg $ intercalate "\n" $ ["converted event:", show event, "to:"] ++ estr
+    logMsgLns $ ["converted event:", show event, "to:"] ++ estr
     -- one event can expand to multiple requests,
     -- accumulate them all before actually handling them
     let go (wm, acc) ev = second (acc ++) (handleEvent conf ev wm)
@@ -454,7 +452,7 @@ showWindowBounds :: WmState -> IO ()
 showWindowBounds wm =
     let wins = wmWindows wm
         f win = unwords [showHex (winId win) "", show (winBounds win)]
-     in logMsg $ intercalate "\n" $ "windows and bounds" : (if null wins then ["<none>"] else map f wins)
+     in logMsgLns $ "windows and bounds" : (if null wins then ["<none>"] else map f wins)
 
 printDebug :: WmState -> IO ()
 printDebug wm = do
