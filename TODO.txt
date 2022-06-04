@@ -19,6 +19,14 @@ toggleable borders
 
 
 
+think about
+-----------
+
+fullscreen is implemented simply by resizing the window so its borders
+are outside the screen. this works but ...
+
+
+
 bugs
 ----
 

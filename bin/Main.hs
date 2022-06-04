@@ -96,6 +96,7 @@ keyBinds =
     , (xK_grave, modMask, BindActWm EvCmdFocusPrev)
     , (xK_q, modMask, BindActWin EvCmdClose)
     , (xK_m, modMask, BindActWin EvCmdMaximize)
+    , (xK_f, modMask, BindActWm EvCmdFullscreen)
     , (xK_Escape, modMask, BindActWm EvCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
     , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))

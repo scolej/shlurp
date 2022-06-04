@@ -6,7 +6,9 @@ import Test.HUnit
 -- focus change wrapping
 -- backwards focus changing
 --
--- todo screen bounds snap
+-- screen bounds snap
+--
+-- fullscreen
 
 handleEvents :: WmState -> [Ev] -> WmState
 handleEvents = foldl (\wm0 e -> fst $ handleEvent wcDefault e wm0)

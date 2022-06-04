@@ -55,6 +55,7 @@ data Ev
     | -- | indicate that we've finished switching focus: raise current focused win to top of focus stack
       EvCmdFocusFinished
     | EvCmdMaximize WinId
+    | EvCmdFullscreen
     | EvCmdLower
     deriving (Eq, Show)
 
@@ -280,6 +281,16 @@ handleEvent _ (EvWantsResize wid w h) wm0 =
 handleEvent _ (EvCmdMaximize wid) wm0 =
     let bs = containingScreenBounds wm0 wid
      in (wm0, catMaybes [ReqMoveResize wid <$> bs])
+handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
+    let req = do
+            wid <- wmFocused wm0
+            (Bounds sl sr st sb) <- containingScreenBounds wm0 wid
+            let l = sl - bw
+                r = sr + bw
+                t = st - bw
+                b = sb + bw
+            return $ ReqMoveResize wid (Bounds l r t b)
+     in (wm0, maybeToList req)
 handleEvent _ EvCmdLower wm0 =
     case wmFocusHistory wm0 of
         (wid : rest) ->
