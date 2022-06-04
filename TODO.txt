@@ -39,6 +39,12 @@ that gets lost in translation.
 
 remove windows from focus history when they're destroyed
 
+when using lower, and the next mru window is not under the mouse, we'll get
+a spurious mouse-enter event which will steal the focus from where it
+should go. could probably handle this by not emitting a focus-change event
+to the WM until we have received a combo of enter & leave from X; then
+discard those triggered by the lower.
+
 
 
 technical

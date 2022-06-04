@@ -31,7 +31,7 @@ logMsg :: String -> IO ()
 logMsg msg = do
     zt <- getZonedTime
     let d = formatTime defaultTimeLocale "%Y-%m-%d %X" zt
-    putStrLn $ d ++ " " ++ msg
+    putStrLn $ "----------\n" ++ d ++ " " ++ msg
 
 {- | Information we determine a single time at startup
 and then carry around for the rest of the program.
@@ -107,7 +107,7 @@ config =
     wcDefault
         { wcSnapDist = 20
         , wcSnapGap = 3
-        , wcBorderWidth = 3
+        , wcBorderWidth = 1
         }
 
 main :: IO ()
@@ -241,14 +241,11 @@ Also performs any X wrangling to achieve this, eg:
 starting and stopping grabs.
 -}
 convertEvent :: WmConfig -> WmReadOnly -> XState -> Event -> IO ([Ev], XState)
-
 convertEvent _ ro xstate MapRequestEvent{ev_window = w} = do
     win <- newWindow (roDisplay ro) w
     return (maybeToList (EvWantsMap <$> win), xstate)
-
 convertEvent _ _ xstate MapNotifyEvent{ev_window = w} =
     return ([EvWasMapped w], xstate)
-
 -- todo configurereqeust will happen before map!
 -- should we create on create and not maprequest?
 -- yes.
@@ -277,13 +274,10 @@ convertEvent
                      in EvWantsResize win (t w) (t h)
                 ]
          in return (catMaybes es, xstate)
-
 convertEvent _ _ xstate DestroyWindowEvent{ev_window = w} =
     return ([EvWasDestroyed w], xstate)
-
 convertEvent _ _ xstate CrossingEvent{ev_window = w} =
     return ([EvMouseEntered w], xstate)
-
 convertEvent
     conf
     _
@@ -294,14 +288,17 @@ convertEvent
         return $ case dragState of
             NascentDrag win x0 y0 ->
                 if mag (x0, y0) (x, y) > (fromIntegral $ wcDragThreshold conf)
-                    then ( [ EvDragStart win x0 y0 , EvDragMove x y]
-                         , xstate{xsDragState = DragInProgress} )
+                    then
+                        ( [EvDragStart win x0 y0, EvDragMove x y]
+                        , xstate{xsDragState = DragInProgress}
+                        )
                     else ([EvDragMove x y], xstate)
             DragInProgress -> ([EvDragMove x y], xstate)
             _ -> ([], xstate)
-
 convertEvent
-    _ _ xstate
+    _
+    _
+    xstate
     ConfigureEvent
         { ev_window = win
         , ev_x = x
@@ -311,9 +308,11 @@ convertEvent
         , ev_border_width = bw
         } =
         return ([EvWasResized win $ transformBounds x y w h bw], xstate)
-
-convertEvent _ WmReadOnly{roDisplay = d} xstate0
-             KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et} = do
+convertEvent
+    _
+    WmReadOnly{roDisplay = d}
+    xstate0
+    KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et} = do
         ks <- keycodeToKeysym d kc 0
         let xstateF = xstate0{xsNakedMod = False}
             xstateT = xstate0{xsNakedMod = True}
@@ -336,7 +335,6 @@ convertEvent _ WmReadOnly{roDisplay = d} xstate0
                 | otherwise = do
                     return ([], xstate0)
         if et == keyPress then down else up
-
 convertEvent
     _
     WmReadOnly{roDisplay = d, roRoot = r}
@@ -375,14 +373,13 @@ convertEvent
             return ([EvMouseClicked w 3], xstate)
         | otherwise = do
             return ([], xstate{xsNakedMod = False})
-
 convertEvent _ _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} =
-    let result | m `elem` [notifyGrab, notifyUngrab] = ([], xstate)
-               | et == focusIn = ([EvFocusIn w], xstate)
-               | et == focusOut = ([EvFocusOut w], xstate)
-               | otherwise = ([], xstate)
-    in return result
-
+    let result
+            | m `elem` [notifyGrab, notifyUngrab] = ([], xstate)
+            | et == focusIn = ([EvFocusIn w], xstate)
+            | et == focusOut = ([EvFocusOut w], xstate)
+            | otherwise = ([], xstate)
+     in return result
 convertEvent _ _ xstate _ = do
     return ([], xstate)
 
