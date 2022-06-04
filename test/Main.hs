@@ -6,7 +6,7 @@ import Test.HUnit
 -- focus change wrapping
 -- backwards focus changing
 --
--- lower emits lower and focus change and changes history
+-- todo screen bounds snap
 
 handleEvents :: WmState -> [Ev] -> WmState
 handleEvents = foldl (\wm0 e -> fst $ handleEvent wcDefault e wm0)
@@ -212,8 +212,6 @@ snap3Wins =
                         (Bounds 403 423 253 273)
                ]
 
--- todo screen bounds snap
-
 resizeAWindow :: Test
 resizeAWindow =
     let w1 = 1
@@ -415,6 +413,24 @@ maximize =
                , "screen 2" ~: reqs2 ~?= [ReqMoveResize 1 screen1]
                ]
 
+lower :: Test
+lower =
+    "lower a window"
+        ~: sequenceTests
+            wm3Windows
+            [
+                ( EvCmdLower
+                , \_ cs -> ["emits lower" ~: cs ~?= [ReqLower wid0, ReqFocus 1]]
+                )
+            ,
+                ( EvFocusIn wid1
+                , \wm cs ->
+                    [ "lowered window is at the back of focus history" ~: last (wmFocusHistory wm) ~?= wid0
+                    , "style the next one focused" ~: cs ~?= [ReqStyleFocused 1]
+                    ]
+                )
+            ]
+
 allTests :: Test
 allTests =
     TestList
@@ -431,6 +447,7 @@ allTests =
         , resizeSnap
         , mruFocusSwitching
         , maximize
+        , lower
         ]
 
 main :: IO ()
