@@ -30,6 +30,8 @@ are outside the screen. this works but ...
 bugs
 ----
 
+when i close a firefox window the whole process dies
+
 switching focus with kbd can leave stale state:
 clicking in unfocused win does nothing
 clicks should focus

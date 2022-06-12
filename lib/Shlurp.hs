@@ -56,7 +56,7 @@ data Ev
       EvCmdFocusFinished
     | EvCmdMaximize WinId
     | EvCmdFullscreen
-    | EvCmdLower
+    | EvCmdLower WinId
     deriving (Eq, Show)
 
 {- | A request from window-manager-land to the outside world:
@@ -291,13 +291,10 @@ handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
                 b = sb + bw
             return $ ReqMoveResize wid (Bounds l r t b)
      in (wm0, maybeToList req)
-handleEvent _ EvCmdLower wm0 =
-    case wmFocusHistory wm0 of
-        (wid : rest) ->
-            let fh1 = rest ++ [wid]
-                wm1 = wm0{wmFocusHistory = fh1}
-             in (wm1, [ReqLower wid, ReqFocus (head fh1)])
-        _ -> (wm0, [])
+handleEvent _ (EvCmdLower wid) wm0 =
+    let fh1 = filter (/= wid) (wmFocusHistory wm0) ++ [wid]
+        wm1 = wm0{wmFocusHistory = fh1}
+     in (wm1, [ReqLower wid, ReqFocus (head fh1)])
 -- todo this event -> action mapping does not belong here
 handleEvent _ (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])

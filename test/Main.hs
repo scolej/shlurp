@@ -448,7 +448,7 @@ lower =
         ~: sequenceTests
             wm3Windows
             [
-                ( EvCmdLower
+                ( EvCmdLower wid0
                 , \_ cs -> ["emits lower" ~: cs ~?= [ReqLower wid0, ReqFocus 1]]
                 )
             ,

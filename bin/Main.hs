@@ -97,7 +97,7 @@ keyBinds =
     , (xK_q, modMask, BindActWin EvCmdClose)
     , (xK_m, modMask, BindActWin EvCmdMaximize)
     , (xK_f, modMask, BindActWm EvCmdFullscreen)
-    , (xK_Escape, modMask, BindActWm EvCmdLower)
+    , (xK_Escape, modMask, BindActWin EvCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
     , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
     , (xK_e, modMask, BindActIO $ void (spawnProcess "e" []))
@@ -107,7 +107,7 @@ config :: WmConfig
 config =
     wcDefault
         { wcSnapDist = 20
-        , wcSnapGap = 3
+        , wcSnapGap = 1
         , wcBorderWidth = 1
         }
 
