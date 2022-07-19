@@ -25,12 +25,23 @@ think about
 fullscreen is implemented simply by resizing the window so its borders
 are outside the screen. this works but ...
 
+super+escape to lower windows is ok; but i want to cycle windows based on
+where i remember they were, eg: i know i've got an xclock in top left, i
+want to put mouse in top left, hit a key a few times, see the clock, then
+mru back to the window i was just looking at. maybe: mod+c would do the
+same as mod-tab but restricted to windows whose bounds contain cursor.
+
 
 
 bugs
 ----
 
+the other day, my gl window closed and then it seemed the whole thing
+was frozen; could not change focus or anything; but no busy loop and
+no crash. should do a time-based periodic debug dump.
+
 when i close a firefox window the whole process dies
+https://unix.stackexchange.com/questions/491139/is-closing-the-window-of-a-x-client-application-process-necessarily-followed-by
 
 switching focus with kbd can leave stale state:
 clicking in unfocused win does nothing
@@ -60,6 +71,8 @@ with absolute screen coords, and doesn't account for the border width.
 
 technical
 ---------
+
+json log out?
 
 todo revise author
 
