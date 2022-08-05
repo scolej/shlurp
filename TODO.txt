@@ -2,6 +2,13 @@ TODO
 ====
 
 
+- fix the empty heads all over the place,
+  need an easy way to act on currently focused win, (if any)
+
+- remove the silly ring thing
+
+
+
 
 must haves
 ----------
@@ -31,10 +38,15 @@ want to put mouse in top left, hit a key a few times, see the clock, then
 mru back to the window i was just looking at. maybe: mod+c would do the
 same as mod-tab but restricted to windows whose bounds contain cursor.
 
+resizing/moving small windows - the region thing doesn't really work that
+well.
+
 
 
 bugs
 ----
+
+ha they're never ending. lower while focus switching is active. bugged.
 
 the other day, my gl window closed and then it seemed the whole thing
 was frozen; could not change focus or anything; but no busy loop and
@@ -54,8 +66,6 @@ may take focus. but at all other times newly mapped windows
 may not take focus. hmmm. maybe newly mapped windows should
 just get focus.
 
-remove windows from focus history when they're destroyed
-
 when using lower, and the next mru window is not under the mouse, we'll get
 a spurious mouse-enter event which will steal the focus from where it
 should go. could probably handle this by not emitting a focus-change event
@@ -72,6 +82,8 @@ with absolute screen coords, and doesn't account for the border width.
 technical
 ---------
 
+really need lens - so much silly boiler plate atm
+
 json log out?
 
 todo revise author
@@ -85,7 +97,7 @@ think about event/command interface
 think about how to write a log on keypress with state info,
 which is currently not trivial
 
-understand the how grabbing raw mod-keys impacts things like sxhkd.
+understand how grabbing raw mod-keys impacts things like sxhkd.
 why can't i bind mods and also bind mod-ret from sxhkd?
 
 rethink bindings: BindAction
@@ -93,6 +105,8 @@ is there a better way?
 
 rethink the configurerequest-maprequest lifecycle.
 some windows (firefox) will send config before map
+
+better to delete windows on unmap than wait for destroy?
 
 
 

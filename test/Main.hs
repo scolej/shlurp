@@ -420,13 +420,13 @@ maximize =
         screen1 = Bounds 801 1000 10 500
         w0 =
             Win
-                { winId = (WinId 0)
+                { winId = wid0
                 , winBounds = Bounds 0 10 0 10
                 , winMapped = True
                 }
         w1 =
             Win
-                { winId = (WinId 1)
+                { winId = wid1
                 , winBounds = Bounds 850 900 15 300
                 , winMapped = True
                 }
@@ -434,12 +434,15 @@ maximize =
             wmBlankState
                 { wmWindows = [w0, w1]
                 , wmScreenBounds = [screen0, screen1]
+                , wmFocusHistory = [wid0, wid1]
                 }
-        (wm1, reqs1) = handleEvent wcDefault (EvCmdMaximize (WinId 0)) wm0
-        (_, reqs2) = handleEvent wcDefault (EvCmdMaximize (WinId 1)) wm1
+        (wm1, reqs1) = handleEvent wcDefault (EvCmdMaximize) wm0
+        (wm2, _) = handleEvent wcDefault (EvCmdFocusNext) wm1
+        (wm3, _) = handleEvent wcDefault (EvCmdFocusFinished) wm2
+        (_, reqs4) = handleEvent wcDefault (EvCmdMaximize) wm3
      in "maximize windows"
             ~: [ "screen 1" ~: reqs1 ~?= [ReqMoveResize (WinId 0) screen0]
-               , "screen 2" ~: reqs2 ~?= [ReqMoveResize (WinId 1) screen1]
+               , "screen 2" ~: reqs4 ~?= [ReqMoveResize (WinId 1) screen1]
                ]
 
 lower :: Test
@@ -448,7 +451,7 @@ lower =
         ~: sequenceTests
             wm3Windows
             [
-                ( EvCmdLower wid0
+                ( EvCmdLower
                 , \_ cs -> ["emits lower" ~: cs ~?= [ReqLower wid0, ReqFocus (WinId 1)]]
                 )
             ,

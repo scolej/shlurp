@@ -84,8 +84,6 @@ modKeyR = xK_Super_R
 data BindAction
     = -- | trigger an event which doesn't care about the source window
       BindActWm Ev
-    | -- | trigger an event using the event's source window
-      BindActWin (WinId -> Ev)
     | -- | run an arbitrary IO action
       BindActIO (IO ())
 
@@ -95,9 +93,9 @@ keyBinds =
     , (xK_space, modMask, BindActWm EvCmdFocusNext)
     , (xK_grave, modMask, BindActWm EvCmdFocusPrev)
     , (xK_q, modMask, BindActWm EvCmdClose)
-    , (xK_m, modMask, BindActWin EvCmdMaximize)
+    , (xK_m, modMask, BindActWm EvCmdMaximize)
     , (xK_f, modMask, BindActWm EvCmdFullscreen)
-    , (xK_Escape, modMask, BindActWin EvCmdLower)
+    , (xK_Escape, modMask, BindActWm EvCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
     , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
     , (xK_e, modMask, BindActIO $ void (spawnProcess "e" []))
@@ -323,7 +321,6 @@ convertEvent
                     let mba = (\(_, _, a) -> a) <$> find (\(sym, _, _) -> sym == ks) keyBinds
                      in case mba of
                             Just (BindActWm ev) -> return ([ev], xstateF)
-                            Just (BindActWin f) -> return ([f (WinId w)], xstateF)
                             Just (BindActIO io) -> io >> return ([], xstateF)
                             Nothing -> return ([], xstateF)
             up

@@ -63,9 +63,9 @@ data Ev
       EvCmdFocusPrev
     | -- | indicate that we've finished switching focus: raise current focused win to top of focus stack
       EvCmdFocusFinished
-    | EvCmdMaximize WinId
+    | EvCmdMaximize
     | EvCmdFullscreen
-    | EvCmdLower WinId
+    | EvCmdLower
     deriving (Eq, Show)
 
 {- | A request from window-manager-land to the outside world:
@@ -305,8 +305,9 @@ handleEvent _ (EvWantsResize wid w h) wm0 =
                 let (w', h') = minSize w h
                  in [ReqResize wid w' h']
      in (wm0, reqs)
-handleEvent _ (EvCmdMaximize wid) wm0 =
+handleEvent _ EvCmdMaximize wm0 =
     let bs = containingScreenBounds wm0 wid
+        wid = head (wmFocusHistory wm0)
      in (wm0, catMaybes [ReqMoveResize wid <$> bs])
 handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
     let req = do
@@ -318,8 +319,9 @@ handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
                 b = sb + bw
             return $ ReqMoveResize wid (Bounds l r t b)
      in (wm0, maybeToList req)
-handleEvent _ (EvCmdLower wid) wm0 =
-    let fh1 = filter (/= wid) (wmFocusHistory wm0) ++ [wid]
+handleEvent _ EvCmdLower wm0 =
+    let wid = head (wmFocusHistory wm0)
+        fh1 = filter (/= wid) (wmFocusHistory wm0) ++ [wid]
         wm1 = wm0{wmFocusHistory = fh1}
      in (wm1, [ReqLower wid, ReqFocus (head fh1)])
 -- todo this event -> action mapping does not belong here
