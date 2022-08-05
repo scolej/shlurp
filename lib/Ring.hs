@@ -24,3 +24,11 @@ ringRotate (Ring as x bs) = Ring (x : init as) (head bs) (tail bs ++ [x])
 ringRotateBack :: Ring a -> Ring a
 ringRotateBack r@(Ring [] _ []) = r
 ringRotateBack (Ring as x bs) = Ring (tail as ++ [x]) (head as) (x : init bs)
+
+ringFilter :: (a -> Bool) -> Ring a -> Ring a
+ringFilter f (Ring as x bs) =
+    let as' = filter f as
+        bs' = filter f bs
+     in if f x
+            then Ring as' x bs'
+            else Ring as' (head bs') (tail bs')

@@ -94,7 +94,7 @@ keyBinds =
     [ (xK_Tab, modMask, BindActWm EvCmdFocusNext)
     , (xK_space, modMask, BindActWm EvCmdFocusNext)
     , (xK_grave, modMask, BindActWm EvCmdFocusPrev)
-    , (xK_q, modMask, BindActWin EvCmdClose)
+    , (xK_q, modMask, BindActWm EvCmdClose)
     , (xK_m, modMask, BindActWin EvCmdMaximize)
     , (xK_f, modMask, BindActWm EvCmdFullscreen)
     , (xK_Escape, modMask, BindActWin EvCmdLower)
@@ -456,7 +456,13 @@ printDebug :: WmState -> IO ()
 printDebug wm = do
     showWindowBounds wm
     logMsg $
-        unwords
-            [ "focus history"
-            , show $ map (`showHex` "") (wmFocusHistory wm)
+        unlines
+            [ unwords
+                [ "focus history"
+                , show $ map (`showHex` "") (wmFocusHistory wm)
+                ]
+            , unwords
+                [ "focus ring"
+                , show $ wmFocusRing wm
+                ]
             ]

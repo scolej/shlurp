@@ -47,7 +47,7 @@ data Ev
     | EvDragFinish
     | -- | mouse button clicked on window
       EvMouseClicked WinId Int
-    | EvCmdClose WinId
+    | EvCmdClose
     | -- | switch to the next most recently used window
       EvCmdFocusNext
     | -- | switch to the previous most recently used window
@@ -98,6 +98,7 @@ data FocusCycleState = FocusCycleState
     , -- | the original focus list (not infinite) to reinstate when we're done
       fcsOrig :: [WinId]
     }
+    deriving (Show)
 
 data WmState = WmState
     { -- | all windows
@@ -211,10 +212,27 @@ handleEvent _ (EvWantsMap win) wm0 =
 handleEvent _ (EvWasMapped wid) wm0 =
     (setMapped wid wm0, [])
 handleEvent _ (EvWasDestroyed wid) wm0 =
-    -- todo remove from ring
     let ws0 = wmWindows wm0
+        fh0 = wmFocusHistory wm0
+        fr0 = wmFocusRing wm0
         ws1 = filter (\w -> winId w /= wid) ws0
-     in (wm0{wmWindows = ws1}, [])
+        fh1 = filter (/= wid) fh0
+        fr1 =
+            ( \fcs ->
+                let r0 = fcsRing fcs
+                    o0 = fcsOrig fcs
+                    r1 = ringFilter (/= wid) r0
+                    o1 = filter (/= wid) o0
+                 in fcs{fcsRing = r1, fcsOrig = o1}
+            )
+                <$> fr0
+     in ( wm0
+            { wmWindows = ws1
+            , wmFocusHistory = fh1
+            , wmFocusRing = fr1
+            }
+        , []
+        )
 handleEvent _ (EvMouseEntered wid) wm0 =
     (wm0, [ReqFocus wid])
 handleEvent _ (EvFocusIn wid) wm0 =
@@ -300,8 +318,9 @@ handleEvent _ (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
     | button == 3 = (wm0, [ReqLower wid])
     | otherwise = (wm0, [])
-handleEvent _ (EvCmdClose wid) wm0 =
-    (wm0, [ReqClose wid])
+handleEvent _ EvCmdClose wm0 =
+    let wid = head (wmFocusHistory wm0)
+     in (wm0, [ReqClose wid])
 handleEvent _ EvCmdFocusNext wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
