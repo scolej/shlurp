@@ -1,6 +1,7 @@
 module Shlurp (
     Bounds (..),
-    WinId,
+    WinId (..),
+    wid64,
     Win (..),
     Ev (..),
     Request (..),
@@ -17,12 +18,20 @@ module Shlurp (
 import Data.List
 import Data.Maybe
 import Data.Word
+import Numeric
 import Safe hiding (at)
 
 import Bounds
 import Ring
 
-type WinId = Word64
+data WinId = WinId Word64
+    deriving (Eq)
+
+instance Show WinId where
+    show (WinId w) = showHex w ""
+
+wid64 :: WinId -> Word64
+wid64 (WinId w) = w
 
 data Win = Win
     { winId :: WinId
