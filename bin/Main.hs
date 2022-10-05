@@ -91,7 +91,9 @@ keyBinds :: [(KeySym, KeyMask, BindAction)]
 keyBinds =
     [ (xK_Tab, modMask, BindActWm EvCmdFocusNext)
     , (xK_space, modMask, BindActWm EvCmdFocusNext)
+    , (xK_period, modMask, BindActWm EvCmdFocusNext)
     , (xK_grave, modMask, BindActWm EvCmdFocusPrev)
+    , (xK_comma, modMask, BindActWm EvCmdFocusPrev)
     , (xK_q, modMask, BindActWm EvCmdClose)
     , (xK_m, modMask, BindActWm EvCmdMaximize)
     , (xK_f, modMask, BindActWm EvCmdFullscreen)

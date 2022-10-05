@@ -29,6 +29,12 @@ toggleable borders
 think about
 -----------
 
+still want to make use of long-press somehow. previous incarnation used
+timing to finish focus switching but this was clumsy. other ideas: hold
+super lock on a resize/move drag? open up a visual window list?
+
+maybe super-. and super-, would be better mru switchers
+
 fullscreen is implemented simply by resizing the window so its borders
 are outside the screen. this works but ...
 
