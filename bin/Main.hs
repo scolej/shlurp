@@ -111,20 +111,8 @@ config =
         , wcBorderWidth = 1
         }
 
-main :: IO ()
-main = do
-    hSetBuffering stdout LineBuffering
-    setDefaultErrorHandler
-
-    d <- openDisplay ""
-
-    let root = defaultRootWindow d
-
-    selectInput
-        d
-        root
-        (substructureRedirectMask .|. substructureNotifyMask)
-
+grabKeys :: WmReadOnly -> IO ()
+grabKeys (WmReadOnly{roDisplay=d,  roRoot=root}) = do
     grabButton
         d
         anyButton
@@ -146,6 +134,20 @@ main = do
     grab modKeyL 0
     grab modKeyR 0
 
+main :: IO ()
+main = do
+    hSetBuffering stdout LineBuffering
+    setDefaultErrorHandler
+
+    d <- openDisplay ""
+
+    let root = defaultRootWindow d
+
+    selectInput
+        d
+        root
+        (substructureRedirectMask .|. substructureNotifyMask)
+
     let cm = defaultColormap d (defaultScreen d)
         getColour hex = color_pixel . fst <$> allocNamedColor d cm hex
     focusedColour <- getColour "#94d2bd"
@@ -158,6 +160,8 @@ main = do
                 , roFocusedColour = focusedColour
                 , roUnfocusedColour = unfocusedColour
                 }
+
+    grabKeys ro
 
     (_, _, existingWindows) <- queryTree d root
     mapM_ (manageNewWindow config ro . WinId) existingWindows
