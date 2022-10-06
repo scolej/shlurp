@@ -42,7 +42,11 @@ super+escape to lower windows is ok; but i want to cycle windows based on
 where i remember they were, eg: i know i've got an xclock in top left, i
 want to put mouse in top left, hit a key a few times, see the clock, then
 mru back to the window i was just looking at. maybe: mod+c would do the
-same as mod-tab but restricted to windows whose bounds contain cursor.
+same as mod-tab but restricted to windows whose bounds contain cursor. ...
+actually can't we get this with super+escape anyway? just don't let the
+focus history change until the super key is released, just like super-tab!
+but the original spirit of super+escape is: i'm finished with this win for
+the moment, send it to the back so it doesn't bother me for a while.
 
 resizing/moving small windows - the region thing doesn't really work that
 well.
@@ -71,12 +75,6 @@ creates a brief window during which the next mapped window
 may take focus. but at all other times newly mapped windows
 may not take focus. hmmm. maybe newly mapped windows should
 just get focus.
-
-when using lower, and the next mru window is not under the mouse, we'll get
-a spurious mouse-enter event which will steal the focus from where it
-should go. could probably handle this by not emitting a focus-change event
-to the WM until we have received a combo of enter & leave from X; then
-discard those triggered by the lower.
 
 border width affects context menu behaviour in firefox. anything more than
 2px (?) and the click which opens the context menu also triggers the menu

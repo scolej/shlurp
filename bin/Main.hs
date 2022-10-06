@@ -7,6 +7,7 @@ import Data.Maybe
 import Data.Time.Format
 import Data.Time.LocalTime
 import Data.Tuple.Extra
+import Debug.Trace
 import Foreign.C.Types
 import Graphics.X11.Types
 import Graphics.X11.Xinerama
@@ -379,10 +380,10 @@ convertEvent
             return ([], xstate{xsNakedMod = False})
 convertEvent _ _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} =
     let result
-            | m `elem` [notifyGrab, notifyUngrab] = ([], xstate)
+            | m `elem` [notifyGrab, notifyUngrab] = trace "grab" ([], xstate)
             | et == focusIn = ([EvFocusIn (WinId w)], xstate)
             | et == focusOut = ([EvFocusOut (WinId w)], xstate)
-            | otherwise = ([], xstate)
+            | otherwise = trace "otherwise" ([], xstate)
      in return result
 convertEvent _ _ xstate _ = do
     return ([], xstate)

@@ -321,9 +321,20 @@ handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
      in (wm0, maybeToList req)
 handleEvent _ EvCmdLower wm0 =
     let wid = head (wmFocusHistory wm0)
-        fh1 = filter (/= wid) (wmFocusHistory wm0) ++ [wid]
-        wm1 = wm0{wmFocusHistory = fh1}
-     in (wm1, [ReqLower wid, ReqFocus (head fh1)])
+     -- we don't change focus history here or send any focus-change
+     -- requests; after lowering, if there's a window under the cursor, X
+     -- will send us a crossing-event and we'll change focus then.
+     --
+     -- hmmm kind of indicates that the only time we should ever change focus history is
+     -- on focus in/out events, otherwise we mismatch with x. ... not quite true: the only time we change the
+     -- _focused window_ is in response to events, we can change up the rest of the history as much as we like.
+     -- and this split also neatly solves all the sill `head`s everywhere: we split into focusedWindow and focusHistory
+     -- and focusedWindow is in history as well
+     --
+     -- then lower can still send the acted-on-win to the back of the focus history
+     --
+     -- still want another bind for cycle mru under mouse
+     in (wm0, [ReqLower wid ])
 -- todo this event -> action mapping does not belong here
 handleEvent _ (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
