@@ -3,15 +3,34 @@ module Shlurp (
     WinId (..),
     wid64,
     Win (..),
-    Ev (..),
     Request (..),
     WmState (..),
     WmConfig (..),
     wcDefault,
     wmBlankState,
-    handleEvent,
     wmMappedWindows,
     findWindow,
+    Ev,
+    evWantsMap,
+    evWasMapped,
+    evWasDestroyed,
+    evMouseEntered,
+    evFocusIn,
+    evFocusOut,
+    evDragStart,
+    evDragMove,
+    evDragFinish,
+    evWasResized,
+    evWantsMove,
+    evWantsResize,
+    evCmdMaximize,
+    evCmdFullscreen,
+    evCmdLower,
+    evMouseClicked,
+    evCmdClose,
+    evCmdFocusNext,
+    evCmdFocusPrev,
+    evCmdFocusFinished,
 ) where
 
 import Data.List
@@ -37,34 +56,6 @@ data Win = Win
     , winBounds :: Bounds
     , winMapped :: Bool
     }
-    deriving (Eq, Show)
-
--- | An event that happened out in the world that we need to respond to.
-data Ev
-    = EvWasMapped WinId
-    | EvWantsMap Win
-    | EvWasResized WinId Bounds
-    | EvWantsResize WinId Integer Integer
-    | EvWantsMove WinId Integer Integer
-    | EvWasDestroyed WinId
-    | EvFocusIn WinId
-    | EvFocusOut WinId
-    | EvMouseEntered WinId
-    | EvDragStart WinId Integer Integer
-    | EvDragMove Integer Integer
-    | EvDragFinish
-    | -- | mouse button clicked on window
-      EvMouseClicked WinId Int
-    | EvCmdClose
-    | -- | switch to the next most recently used window
-      EvCmdFocusNext
-    | -- | switch to the previous most recently used window
-      EvCmdFocusPrev
-    | -- | indicate that we've finished switching focus: raise current focused win to top of focus stack
-      EvCmdFocusFinished
-    | EvCmdMaximize
-    | EvCmdFullscreen
-    | EvCmdLower
     deriving (Eq, Show)
 
 {- | A request from window-manager-land to the outside world:
@@ -227,11 +218,13 @@ clipBounds (Bounds al ar at ab) (Bounds bl br bt bb) =
         (if bt < at then at else bt)
         (if bb > ab then ab else bb)
 
-{- | Handle an event.
-Produces the new window state and any requests which should be forwarded.
+{- | An event is just a function which updates window state and
+ may produce 0 or more requests.
 -}
-handleEvent :: WmConfig -> Ev -> WmState -> (WmState, [Request])
-handleEvent _ (EvWantsMap win) wm0 =
+type Ev = WmState -> (WmState, [Request])
+
+evWantsMap :: Win -> Ev
+evWantsMap win wm0 =
     let wid = winId win
         wb = winBounds win
         maybeResize = do
@@ -246,22 +239,30 @@ handleEvent _ (EvWantsMap win) wm0 =
             , Just (ReqMap wid)
             ]
         )
-handleEvent _ (EvWasMapped wid) wm0 =
-    (setMapped wid wm0, [])
-handleEvent _ (EvWasDestroyed wid) wm0 =
-    (wmForgetWindow wid wm0, [])
-handleEvent _ (EvMouseEntered wid) wm0 =
-    (wm0, [ReqFocus wid])
-handleEvent _ (EvFocusIn wid) wm0 =
+
+evWasMapped :: WinId -> Ev
+evWasMapped wid wm0 = (setMapped wid wm0, [])
+
+evWasDestroyed :: WinId -> Ev
+evWasDestroyed wid wm0 = (wmForgetWindow wid wm0, [])
+
+evMouseEntered :: WinId -> Ev
+evMouseEntered wid wm0 = (wm0, [ReqFocus wid])
+
+evFocusIn :: WinId -> Ev
+evFocusIn wid wm0 =
     ( wm0
         { wmFocused = Just wid
         , wmFocusHistory = focusHistoryNew wm0 [wid]
         }
     , [ReqStyleFocused wid]
     )
-handleEvent _ (EvFocusOut wid) wm0 =
-    (wm0, [ReqStyleUnfocused wid])
-handleEvent conf (EvDragStart wid x y) wm0 =
+
+evFocusOut :: WinId -> Ev
+evFocusOut wid wm0 = (wm0, [ReqStyleUnfocused wid])
+
+evDragStart :: WmConfig -> WinId -> Integer -> Integer -> Ev
+evDragStart conf wid x y wm0 =
     let mw = findWindow wm0 wid
         hf = wcHandleFrac $ conf
         ds = do
@@ -270,7 +271,9 @@ handleEvent conf (EvDragStart wid x y) wm0 =
                 hand = grabWindowHandle hf bs (x, y)
             return $ DragResize wid x y hand bs
      in (wm0{wmDragResize = ds}, [])
-handleEvent conf (EvDragMove x y) wm0 =
+
+evDragMove :: WmConfig -> Integer -> Integer -> Ev
+evDragMove conf x y wm0 =
     let reqs = maybeToList $ do
             ds <- wmDragResize wm0
             let (DragResize wid x0 y0 hand origBounds) = ds
@@ -297,33 +300,43 @@ handleEvent conf (EvDragMove x y) wm0 =
                         newBounds
             return $ ReqMoveResize wid (minBounds snappedBounds)
      in (wm0, reqs)
-handleEvent _ EvDragFinish wm0 =
-    (wm0{wmDragResize = Nothing}, [])
-handleEvent _ (EvWasResized wid bounds) wm0 =
+
+evDragFinish :: Ev
+evDragFinish wm0 = (wm0{wmDragResize = Nothing}, [])
+
+evWasResized :: WinId -> Bounds -> Ev
+evWasResized wid bounds wm0 =
     let ws0 = wmWindows wm0
         u w = if winId w == wid then w{winBounds = bounds} else w
         wm1 = wm0{wmWindows = map u ws0}
      in (wm1, [])
-handleEvent _ (EvWantsMove wid x y) wm0 =
+
+evWantsMove :: WinId -> Integer -> Integer -> Ev
+evWantsMove wid x y wm0 =
     let reqs
             | isJust (findWindow wm0 wid) = [] -- if we know about the window, it's been mapped, refuse the move
             | otherwise = [ReqMove wid x y]
      in (wm0, reqs)
-handleEvent _ (EvWantsResize wid w h) wm0 =
+
+evWantsResize :: WinId -> Integer -> Integer -> Ev
+evWantsResize wid w h wm0 =
     let reqs
             | isJust (findWindow wm0 wid) = [] -- if we know about the window, it's been mapped, refuse the resize
             | otherwise =
                 let (w', h') = minSize w h
                  in [ReqResize wid w' h']
      in (wm0, reqs)
-handleEvent _ EvCmdMaximize wm0 =
+
+evCmdMaximize :: Ev
+evCmdMaximize =
     wmWithFocused
         ( \wm wid ->
             let bs = containingScreenBounds wm wid
              in (wm, catMaybes [ReqMoveResize wid <$> bs])
         )
-        wm0
-handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
+
+evCmdFullscreen :: WmConfig -> Ev
+evCmdFullscreen WmConfig{wcBorderWidth = bw} =
     wmWithFocused
         ( \wm wid ->
             let req = do
@@ -335,8 +348,9 @@ handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
                     return $ ReqMoveResize wid (Bounds l r t b)
              in (wm, maybeToList req)
         )
-        wm0
-handleEvent _ EvCmdLower wm0 =
+
+evCmdLower :: Ev
+evCmdLower =
     wmWithFocused
         ( \wm wid ->
             -- we don't change focus history here or send any focus-change
@@ -354,19 +368,23 @@ handleEvent _ EvCmdLower wm0 =
             -- still want another bind for cycle mru under mouse
             (wm, [ReqLower wid])
         )
-        wm0
+
 -- todo this event -> action mapping does not belong here
-handleEvent _ (EvMouseClicked wid button) wm0
+evMouseClicked :: WinId -> Int -> Ev
+evMouseClicked wid button wm0
     | button == 1 = (wm0, [ReqRaise wid])
     | button == 3 = (wm0, [ReqLower wid])
     | otherwise = (wm0, [])
-handleEvent _ EvCmdClose wm0 =
+
+evCmdClose :: Ev
+evCmdClose =
     wmWithFocused
         ( \wm wid ->
             (wm, [ReqClose wid])
         )
-        wm0
-handleEvent _ EvCmdFocusNext wm0 =
+
+evCmdFocusNext :: Ev
+evCmdFocusNext wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
      in ( wm1
@@ -374,7 +392,9 @@ handleEvent _ EvCmdFocusNext wm0 =
             Just foc -> [ReqFocus foc, ReqRaise foc]
             Nothing -> []
         )
-handleEvent _ EvCmdFocusPrev wm0 =
+
+evCmdFocusPrev :: Ev
+evCmdFocusPrev wm0 =
     let wm1 = rotateRing ringRotateBack $ wmInitFocusRing wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
      in ( wm1
@@ -382,8 +402,9 @@ handleEvent _ EvCmdFocusPrev wm0 =
             Just foc -> [ReqFocus foc, ReqRaise foc]
             Nothing -> []
         )
-handleEvent _ EvCmdFocusFinished wm0 =
-    (finishFocusChange wm0, [])
+
+evCmdFocusFinished :: Ev
+evCmdFocusFinished wm0 = (finishFocusChange wm0, [])
 
 containingScreenBounds :: WmState -> WinId -> Maybe Bounds
 containingScreenBounds wm wid = do

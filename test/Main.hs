@@ -11,7 +11,7 @@ import Test.HUnit
 -- fullscreen
 
 handleEvents :: WmState -> [Ev] -> WmState
-handleEvents = foldl (\wm0 e -> fst $ handleEvent wcDefault e wm0)
+handleEvents = foldl (\wm0 e -> fst $ e wm0)
 
 -- | Sequence events with assertions at each stage.
 sequenceTests ::
@@ -23,7 +23,7 @@ sequenceTests ::
     Test
 sequenceTests wmInit ts =
     let go (wm0, acc) (e, t) =
-            let (wm1, cs) = handleEvent wcDefault e wm0 in (wm1, test (t wm1 cs) : acc)
+            let (wm1, cs) = e wm0 in (wm1, test (t wm1 cs) : acc)
      in test . reverse . snd $ foldl go (wmInit, []) ts
 
 wid0, wid1, wid2 :: WinId
@@ -69,7 +69,7 @@ mapsWindow =
     sequenceTests
         wmBlankState
         [
-            ( EvWantsMap win0
+            ( evWantsMap win0
             , \wm cs ->
                 [ "nothing focused" ~: wmFocused wm ~?= Nothing
                 , "nothing mapped" ~: wmMappedWindows wm ~?= []
@@ -77,7 +77,7 @@ mapsWindow =
                 ]
             )
         ,
-            ( EvWasMapped wid0
+            ( evWasMapped wid0
             , \wm cs ->
                 [ "window mapped" ~: wmMappedWindows wm ~?= [wid0]
                 , "no requests" ~: cs ~?= []
@@ -101,7 +101,7 @@ mapsWindowBoundsExceedScreen =
      in sequenceTests
             wm0
             [
-                ( EvWantsMap bigWin
+                ( evWantsMap bigWin
                 , \_ cs ->
                     [ "requests resize then map" ~: cs
                         ~?= [ ReqManage wid0
@@ -115,7 +115,7 @@ mapsWindowBoundsExceedScreen =
 windowDestroyed :: Test
 windowDestroyed =
     let wm0 = wmTwoWindows
-        (wm1, cs1) = handleEvent wcDefault (EvWasDestroyed wid0) wm0
+        (wm1, cs1) = evWasDestroyed wid0 wm0
      in "window desroyed"
             ~: [ "window is gone" ~: findWindow wm1 wid0 ~?= Nothing
                , "no further requests" ~: cs1 ~?= []
@@ -125,8 +125,8 @@ windowDestroyed =
 focusFollowsMouse1 :: Test
 focusFollowsMouse1 =
     let wm0 = wmTwoWindows
-        (wm1, cs1) = handleEvent wcDefault (EvMouseEntered wid1) wm0
-        (wm2, cs2) = handleEvent wcDefault (EvFocusIn wid1) wm1
+        (wm1, cs1) = evMouseEntered wid1 wm0
+        (wm2, cs2) = evFocusIn wid1 wm1
      in "focus change"
             ~: [ "window 0 focused" ~: wmFocused wm0 ~?= Just wid0
                , "requests new focus" ~: cs1 ~?= [ReqFocus wid1]
@@ -137,7 +137,7 @@ focusFollowsMouse1 =
 focusFollowsMouse2 :: Test
 focusFollowsMouse2 =
     let wm0 = wmTwoWindows
-        (wm1, cs1) = handleEvent wcDefault (EvMouseEntered wid0) wm0
+        (wm1, cs1) = evMouseEntered wid0 wm0
      in "no focus change"
             ~: [ "window 0 focused" ~: wmFocused wm0 ~?= Just wid0
                , "we still emit a request" ~: cs1 ~?= [ReqFocus wid0]
@@ -147,10 +147,10 @@ focusFollowsMouse2 =
 dragMove :: Test
 dragMove =
     let wm0 = wmBlankState{wmWindows = [mappedWinAt (WinId 0) (Bounds 10 100 10 100)]}
-        (wm1, cs1) = handleEvent wcDefault (EvDragStart (WinId 0) 45 45) wm0
-        (wm2, cs2) = handleEvent wcDefault (EvDragMove 65 65) wm1
-        (wm3, cs3) = handleEvent wcDefault EvDragFinish wm2
-        (_, cs4) = handleEvent wcDefault (EvDragMove 99 99) wm3
+        (wm1, cs1) = evDragStart wcDefault (WinId 0) 45 45 wm0
+        (wm2, cs2) = evDragMove wcDefault 65 65 wm1
+        (wm3, cs3) = evDragFinish wm2
+        (_, cs4) = evDragMove wcDefault 99 99 wm3
         newBounds = Bounds 30 120 30 120
      in "window can be drag moved"
             ~: [ "no initial requests" ~: cs1 ~?= []
@@ -182,8 +182,8 @@ dragMoveResizeTest ::
     -- | a test case
     Test
 dragMoveResizeTest wm0 wid (x0, y0) (x1, y1) bs1 =
-    let (wm1, _) = handleEvent wcDefault (EvDragStart wid x0 y0) wm0
-        (_, cs2) = handleEvent wcDefault (EvDragMove x1 y1) wm1
+    let (wm1, _) = evDragStart wcDefault wid x0 y0 wm0
+        (_, cs2) = evDragMove wcDefault x1 y1 wm1
      in cs2 ~?= [ReqMoveResize wid bs1]
 
 -- | Test cases for snapping between two windows.
@@ -298,7 +298,7 @@ windowResized :: Test
 windowResized =
     let wm0 = wmTwoWindows
         bs = Bounds 20 220 30 330
-        (wm1, cs1) = handleEvent wcDefault (EvWasResized wid0 bs) wm0
+        (wm1, cs1) = evWasResized wid0 bs wm0
         Just win = findWindow wm1 wid0
         bounds1 = winBounds win
      in "window is resized"
@@ -308,9 +308,9 @@ windowResized =
 
 noConfigureWhileDragging :: Test
 noConfigureWhileDragging =
-    let (wm1, _) = handleEvent wcDefault (EvDragStart wid0 0 0) wmTwoWindows
-        (_, cs2) = handleEvent wcDefault (EvWantsResize wid0 0 0) wm1
-        (_, cs3) = handleEvent wcDefault (EvWantsMove wid0 0 0) wm1
+    let (wm1, _) = evDragStart wcDefault wid0 0 0 wmTwoWindows
+        (_, cs2) = evWantsResize wid0 0 0 wm1
+        (_, cs3) = evWantsMove wid0 0 0 wm1
      in "no configures while dragging"
             ~: [ "resize not forwarded" ~: cs2 ~?= []
                , "move not forwarded" ~: cs3 ~?= []
@@ -327,88 +327,94 @@ wm3Windows =
 
 mruFocusSwitching :: Test
 mruFocusSwitching =
-    let wm0 = handleEvents wm3Windows [EvFocusIn (WinId 2), EvFocusIn (WinId 1), EvFocusIn (WinId 0)] -- set up known focus order
+    let wm0 =
+            handleEvents
+                wm3Windows
+                [ evFocusIn (WinId 2)
+                , evFocusIn (WinId 1)
+                , evFocusIn (WinId 0) -- set up known focus order
+                ]
      in "mru focus switching"
             ~: sequenceTests
                 wm0
                 [
-                    ( EvCmdFocusNext -- switch
+                    ( evCmdFocusNext -- switch
                     , \wm cs ->
                         [ "window 0 is still focused" ~: wmFocused wm ~?= Just (WinId 0)
                         , "requests focus for 1" ~: cs ~?= [ReqFocus (WinId 1), ReqRaise (WinId 1)]
                         ]
                     )
                 ,
-                    ( EvFocusIn (WinId 1)
+                    ( evFocusIn (WinId 1)
                     , \wm _ -> ["window 1 now focused" ~: wmFocused wm ~?= Just (WinId 1)]
                     )
                 ,
-                    ( EvCmdFocusFinished
+                    ( evCmdFocusFinished
                     , \wm cs ->
                         [ "window 1 still focused" ~: wmFocused wm ~?= Just (WinId 1)
                         , "no requests after first change" ~: cs ~?= []
                         ]
                     )
                 ,
-                    ( EvCmdFocusNext -- switch back
+                    ( evCmdFocusNext -- switch back
                     , \wm cs ->
                         [ "window 1 is still focused" ~: wmFocused wm ~?= Just (WinId 1)
                         , "requests focus for 0" ~: cs ~?= [ReqFocus (WinId 0), ReqRaise (WinId 0)]
                         ]
                     )
                 ,
-                    ( EvFocusIn (WinId 0)
+                    ( evFocusIn (WinId 0)
                     , \wm _ -> ["window 0 now focused" ~: wmFocused wm ~?= Just (WinId 0)]
                     )
                 ,
-                    ( EvCmdFocusFinished
+                    ( evCmdFocusFinished
                     , \wm cs ->
                         [ "window 0 still focused" ~: wmFocused wm ~?= Just (WinId 0)
                         , "no requests after first change" ~: cs ~?= []
                         ]
                     )
                 ,
-                    ( EvCmdFocusNext -- double switch
+                    ( evCmdFocusNext -- double switch
                     , \wm cs ->
                         [ "window 0 is still focused" ~: wmFocused wm ~?= Just (WinId 0)
                         , "requests focus for 1" ~: cs ~?= [ReqFocus (WinId 1), ReqRaise (WinId 1)]
                         ]
                     )
                 ,
-                    ( EvFocusIn (WinId 1)
+                    ( evFocusIn (WinId 1)
                     , \wm _ -> ["window 1 now focused" ~: wmFocused wm ~?= Just (WinId 1)]
                     )
                 ,
-                    ( EvCmdFocusNext
+                    ( evCmdFocusNext
                     , \wm cs ->
                         [ "window 1 is still focused" ~: wmFocused wm ~?= Just (WinId 1)
                         , "requests focus for 2" ~: cs ~?= [ReqFocus (WinId 2), ReqRaise (WinId 2)]
                         ]
                     )
                 ,
-                    ( EvFocusIn (WinId 2)
+                    ( evFocusIn (WinId 2)
                     , \wm _ -> ["window 2 now focused" ~: wmFocused wm ~?= Just (WinId 2)]
                     )
                 ,
-                    ( EvCmdFocusFinished
+                    ( evCmdFocusFinished
                     , \wm cs ->
                         [ "window 2 still focused" ~: wmFocused wm ~?= Just (WinId 2)
                         , "no requests after first change" ~: cs ~?= []
                         ]
                     )
                 ,
-                    ( EvCmdFocusNext -- switch back again
+                    ( evCmdFocusNext -- switch back again
                     , \wm cs ->
                         [ "window 2 is still focused" ~: wmFocused wm ~?= Just (WinId 2)
                         , "requests focus for 0" ~: cs ~?= [ReqFocus (WinId 0), ReqRaise (WinId 0)]
                         ]
                     )
                 ,
-                    ( EvFocusIn (WinId 0)
+                    ( evFocusIn (WinId 0)
                     , \wm _ -> ["window 0 now focused" ~: wmFocused wm ~?= Just (WinId 0)]
                     )
                 ,
-                    ( EvCmdFocusFinished
+                    ( evCmdFocusFinished
                     , \wm cs ->
                         [ "window 0 still focused" ~: wmFocused wm ~?= Just (WinId 0)
                         , "no requests after first change" ~: cs ~?= []
@@ -439,9 +445,9 @@ maximize =
                 , wmFocusHistory = [wid0, wid1]
                 , wmFocused = Just wid0
                 }
-        (wm1, reqs1) = handleEvent wcDefault (EvCmdMaximize) wm0
-        (wm2, _) = handleEvent wcDefault (EvFocusIn wid1) wm1
-        (_, reqs3) = handleEvent wcDefault (EvCmdMaximize) wm2
+        (wm1, reqs1) = evCmdMaximize wm0
+        (wm2, _) = evFocusIn wid1 wm1
+        (_, reqs3) = evCmdMaximize wm2
      in "maximize windows"
             ~: [ "screen 1" ~: reqs1 ~?= [ReqMoveResize (WinId 0) screen0]
                , "screen 2" ~: reqs3 ~?= [ReqMoveResize (WinId 1) screen1]
@@ -453,16 +459,16 @@ lower =
         ~: sequenceTests
             wm3Windows
             [
-                ( EvCmdLower
+                ( evCmdLower
                 , \_ cs -> ["emits lower" ~: cs ~?= [ReqLower wid0]]
                 )
---            ,
---                ( EvFocusIn wid1
---                , \wm cs ->
---                    [ "lowered window is at the back of focus history" ~: last (wmFocusHistory wm) ~?= wid0
---                    , "style the next one focused" ~: cs ~?= [ReqStyleFocused (WinId 1)]
---                    ]
---                )
+                --            ,
+                --                ( EvFocusIn wid1
+                --                , \wm cs ->
+                --                    [ "lowered window is at the back of focus history" ~: last (wmFocusHistory wm) ~?= wid0
+                --                    , "style the next one focused" ~: cs ~?= [ReqStyleFocused (WinId 1)]
+                --                    ]
+                --                )
             ]
 
 allTests :: Test
