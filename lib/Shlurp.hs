@@ -10,7 +10,6 @@ module Shlurp (
     wcDefault,
     wmBlankState,
     handleEvent,
-    wmFocused,
     wmMappedWindows,
     findWindow,
 ) where
@@ -110,9 +109,9 @@ data FocusCycleState = FocusCycleState
     deriving (Show)
 
 data WmState = WmState
-    { -- | all windows
-      wmWindows :: [Win]
-    , -- | windows in order of focus history
+    { wmFocused :: Maybe WinId
+    , wmWindows :: [Win]
+    , -- | windows in order of last focus
       wmFocusHistory :: [WinId]
     , -- | if we're currently cycling window focus, this contains the focus ring
       wmFocusRing :: Maybe FocusCycleState
@@ -121,10 +120,6 @@ data WmState = WmState
     , -- | screen bounds
       wmScreenBounds :: [Bounds]
     }
-
--- | Finds the currently focused window.
-wmFocused :: WmState -> Maybe WinId
-wmFocused wm0 = headMay $ wmFocusHistory wm0
 
 data WmConfig = WmConfig
     { -- | distance below which snapping occurs
@@ -152,7 +147,8 @@ wcDefault =
 wmBlankState :: WmState
 wmBlankState =
     WmState
-        { wmWindows = []
+        { wmFocused = Nothing
+        , wmWindows = []
         , wmFocusHistory = []
         , wmFocusRing = Nothing
         , wmDragResize = Nothing
@@ -160,12 +156,44 @@ wmBlankState =
         }
 
 findWindow :: WmState -> WinId -> Maybe Win
-findWindow wm wid = find (\w -> winId w == wid) (wmWindows wm)
+findWindow wm wid =
+    find (\w -> winId w == wid) (wmWindows wm)
 
 wmMappedWindows :: WmState -> [WinId]
 wmMappedWindows wm0 = map winId $ filter winMapped (wmWindows wm0)
 
--- | Builds a new focus history given a list of windows to put at the front of the history.
+-- | Remove any reference to the given window.
+wmForgetWindow :: WinId -> WmState -> WmState
+wmForgetWindow wid wm =
+    wm
+        { wmWindows = filter (\w -> winId w /= wid) (wmWindows wm)
+        , wmFocused = (wmFocused wm) >>= (\f -> if f == wid then Nothing else Just f)
+        , wmFocusHistory = filter (/= wid) (wmFocusHistory wm)
+        , wmFocusRing =
+            ( \fr ->
+                fr
+                    { fcsRing = ringFilter (/= wid) (fcsRing fr)
+                    , fcsOrig = filter (/= wid) (fcsOrig fr)
+                    }
+            )
+                <$> (wmFocusRing wm)
+        }
+
+{- | Map the window state using the focused window or do nothing if
+there is no focused window.
+-}
+wmWithFocused ::
+    (WmState -> WinId -> (WmState, [Request])) ->
+    WmState ->
+    (WmState, [Request])
+wmWithFocused f wm =
+    case wmFocused wm of
+        Just wid -> f wm wid
+        Nothing -> (wm, [])
+
+{- | Builds a new focus history given a list of windows to put at the
+front of the history.
+-}
 focusHistoryNew ::
     -- | existing state
     WmState ->
@@ -221,33 +249,16 @@ handleEvent _ (EvWantsMap win) wm0 =
 handleEvent _ (EvWasMapped wid) wm0 =
     (setMapped wid wm0, [])
 handleEvent _ (EvWasDestroyed wid) wm0 =
-    let ws0 = wmWindows wm0
-        fh0 = wmFocusHistory wm0
-        fr0 = wmFocusRing wm0
-        ws1 = filter (\w -> winId w /= wid) ws0
-        fh1 = filter (/= wid) fh0
-        fr1 =
-            ( \fcs ->
-                let r0 = fcsRing fcs
-                    o0 = fcsOrig fcs
-                    r1 = ringFilter (/= wid) r0
-                    o1 = filter (/= wid) o0
-                 in fcs{fcsRing = r1, fcsOrig = o1}
-            )
-                <$> fr0
-     in ( wm0
-            { wmWindows = ws1
-            , wmFocusHistory = fh1
-            , wmFocusRing = fr1
-            }
-        , []
-        )
+    (wmForgetWindow wid wm0, [])
 handleEvent _ (EvMouseEntered wid) wm0 =
     (wm0, [ReqFocus wid])
 handleEvent _ (EvFocusIn wid) wm0 =
-    let newHistory = focusHistoryNew wm0 [wid]
-        reqs = [ReqStyleFocused wid]
-     in (wm0{wmFocusHistory = newHistory}, reqs)
+    ( wm0
+        { wmFocused = Just wid
+        , wmFocusHistory = focusHistoryNew wm0 [wid]
+        }
+    , [ReqStyleFocused wid]
+    )
 handleEvent _ (EvFocusOut wid) wm0 =
     (wm0, [ReqStyleUnfocused wid])
 handleEvent conf (EvDragStart wid x y) wm0 =
@@ -306,43 +317,55 @@ handleEvent _ (EvWantsResize wid w h) wm0 =
                  in [ReqResize wid w' h']
      in (wm0, reqs)
 handleEvent _ EvCmdMaximize wm0 =
-    let bs = containingScreenBounds wm0 wid
-        wid = head (wmFocusHistory wm0)
-     in (wm0, catMaybes [ReqMoveResize wid <$> bs])
+    wmWithFocused
+        ( \wm wid ->
+            let bs = containingScreenBounds wm wid
+             in (wm, catMaybes [ReqMoveResize wid <$> bs])
+        )
+        wm0
 handleEvent WmConfig{wcBorderWidth = bw} (EvCmdFullscreen) wm0 =
-    let req = do
-            wid <- wmFocused wm0
-            (Bounds sl sr st sb) <- containingScreenBounds wm0 wid
-            let l = sl - bw
-                r = sr + bw
-                t = st - bw
-                b = sb + bw
-            return $ ReqMoveResize wid (Bounds l r t b)
-     in (wm0, maybeToList req)
+    wmWithFocused
+        ( \wm wid ->
+            let req = do
+                    (Bounds sl sr st sb) <- containingScreenBounds wm wid
+                    let l = sl - bw
+                        r = sr + bw
+                        t = st - bw
+                        b = sb + bw
+                    return $ ReqMoveResize wid (Bounds l r t b)
+             in (wm, maybeToList req)
+        )
+        wm0
 handleEvent _ EvCmdLower wm0 =
-    let wid = head (wmFocusHistory wm0)
-     -- we don't change focus history here or send any focus-change
-     -- requests; after lowering, if there's a window under the cursor, X
-     -- will send us a crossing-event and we'll change focus then.
-     --
-     -- hmmm kind of indicates that the only time we should ever change focus history is
-     -- on focus in/out events, otherwise we mismatch with x. ... not quite true: the only time we change the
-     -- _focused window_ is in response to events, we can change up the rest of the history as much as we like.
-     -- and this split also neatly solves all the sill `head`s everywhere: we split into focusedWindow and focusHistory
-     -- and focusedWindow is in history as well
-     --
-     -- then lower can still send the acted-on-win to the back of the focus history
-     --
-     -- still want another bind for cycle mru under mouse
-     in (wm0, [ReqLower wid ])
+    wmWithFocused
+        ( \wm wid ->
+            -- we don't change focus history here or send any focus-change
+            -- requests; after lowering, if there's a window under the cursor, X
+            -- will send us a crossing-event and we'll change focus then.
+            --
+            -- hmmm kind of indicates that the only time we should ever change focus history is
+            -- on focus in/out events, otherwise we mismatch with x. ... not quite true: the only time we change the
+            -- _focused window_ is in response to events, we can change up the rest of the history as much as we like.
+            -- and this split also neatly solves all the sill `head`s everywhere: we split into focusedWindow and focusHistory
+            -- and focusedWindow is in history as well
+            --
+            -- then lower can still send the acted-on-win to the back of the focus history
+            --
+            -- still want another bind for cycle mru under mouse
+            (wm, [ReqLower wid])
+        )
+        wm0
 -- todo this event -> action mapping does not belong here
 handleEvent _ (EvMouseClicked wid button) wm0
     | button == 1 = (wm0, [ReqRaise wid])
     | button == 3 = (wm0, [ReqLower wid])
     | otherwise = (wm0, [])
 handleEvent _ EvCmdClose wm0 =
-    let wid = head (wmFocusHistory wm0)
-     in (wm0, [ReqClose wid])
+    wmWithFocused
+        ( \wm wid ->
+            (wm, [ReqClose wid])
+        )
+        wm0
 handleEvent _ EvCmdFocusNext wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
@@ -368,11 +391,13 @@ containingScreenBounds wm wid = do
     win <- findWindow wm wid
     homeBounds screens (winBounds win)
 
-{- | Finds the bounds which "most appropriately" contains another bounds.
-For example, the bounds which has the greatest overlap, or whose centre is closest.
-The current implementation finds the bounds which contains the candidate bounds' centre,
-but it would be better to do something different so we can appropriately handle
-those windows which might map outside any screens' bounds. todo
+{- | Finds the bounds which "most appropriately" contains another
+bounds. For example, the bounds which has the greatest overlap,
+or whose centre is closest. The current implementation finds the
+bounds which contains the candidate bounds' centre, but it would
+be better to do something different so we can appropriately
+handle those windows which might map outside any screens' bounds.
+todo
 -}
 homeBounds :: [Bounds] -> Bounds -> Maybe Bounds
 homeBounds candidates b =
@@ -386,9 +411,15 @@ but prepend the newly focused window.
 finishFocusChange :: WmState -> WmState
 finishFocusChange wm0 =
     let reinstatedHistory = case wmFocusRing wm0 of
-            Just fr -> focusHistoryNew wm0 (ringFocus (fcsRing fr) : fcsOrig fr)
+            Just fr ->
+                focusHistoryNew
+                    wm0
+                    (ringFocus (fcsRing fr) : fcsOrig fr)
             Nothing -> wmFocusHistory wm0
-     in wm0{wmFocusRing = Nothing, wmFocusHistory = reinstatedHistory}
+     in wm0
+            { wmFocusRing = Nothing
+            , wmFocusHistory = reinstatedHistory
+            }
 
 rotateRing :: (Ring WinId -> Ring WinId) -> WmState -> WmState
 rotateRing f wm0 =

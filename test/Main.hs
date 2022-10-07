@@ -60,6 +60,7 @@ wmTwoWindows =
     wmBlankState
         { wmWindows = [win0, win1]
         , wmFocusHistory = [wid0, wid1]
+        , wmFocused = Just wid0
         , wmDragResize = Nothing
         }
 
@@ -320,6 +321,7 @@ wm3Windows =
     wmBlankState
         { wmWindows = [win0, win1, win2]
         , wmFocusHistory = [wid0, wid1, wid2]
+        , wmFocused = Just wid0
         , wmDragResize = Nothing
         }
 
@@ -435,14 +437,14 @@ maximize =
                 { wmWindows = [w0, w1]
                 , wmScreenBounds = [screen0, screen1]
                 , wmFocusHistory = [wid0, wid1]
+                , wmFocused = Just wid0
                 }
         (wm1, reqs1) = handleEvent wcDefault (EvCmdMaximize) wm0
-        (wm2, _) = handleEvent wcDefault (EvCmdFocusNext) wm1
-        (wm3, _) = handleEvent wcDefault (EvCmdFocusFinished) wm2
-        (_, reqs4) = handleEvent wcDefault (EvCmdMaximize) wm3
+        (wm2, _) = handleEvent wcDefault (EvFocusIn wid1) wm1
+        (_, reqs3) = handleEvent wcDefault (EvCmdMaximize) wm2
      in "maximize windows"
             ~: [ "screen 1" ~: reqs1 ~?= [ReqMoveResize (WinId 0) screen0]
-               , "screen 2" ~: reqs4 ~?= [ReqMoveResize (WinId 1) screen1]
+               , "screen 2" ~: reqs3 ~?= [ReqMoveResize (WinId 1) screen1]
                ]
 
 lower :: Test
@@ -452,15 +454,15 @@ lower =
             wm3Windows
             [
                 ( EvCmdLower
-                , \_ cs -> ["emits lower" ~: cs ~?= [ReqLower wid0, ReqFocus (WinId 1)]]
+                , \_ cs -> ["emits lower" ~: cs ~?= [ReqLower wid0]]
                 )
-            ,
-                ( EvFocusIn wid1
-                , \wm cs ->
-                    [ "lowered window is at the back of focus history" ~: last (wmFocusHistory wm) ~?= wid0
-                    , "style the next one focused" ~: cs ~?= [ReqStyleFocused (WinId 1)]
-                    ]
-                )
+--            ,
+--                ( EvFocusIn wid1
+--                , \wm cs ->
+--                    [ "lowered window is at the back of focus history" ~: last (wmFocusHistory wm) ~?= wid0
+--                    , "style the next one focused" ~: cs ~?= [ReqStyleFocused (WinId 1)]
+--                    ]
+--                )
             ]
 
 allTests :: Test
