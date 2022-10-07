@@ -165,7 +165,7 @@ main = do
     grabKeys ro
 
     (_, _, existingWindows) <- queryTree d root
-    mapM_ (manageNewWindow config ro . WinId) existingWindows
+    mapM_ (manageNewWindow ro . WinId) existingWindows
     ws <- fmap catMaybes (mapM (newWindow d . WinId) existingWindows)
 
     screenBounds <- map rect2bounds <$> getScreenInfo d
@@ -175,7 +175,7 @@ main = do
                 { wmWindows = ws
                 , wmScreenBounds = screenBounds
                 }
-    _ <- handleEventsForever config ro xInitState wm0
+    _ <- handleEventsForever ro xInitState wm0
 
     closeDisplay d
 
@@ -246,11 +246,11 @@ hasBits ms v = fromIntegral v .&. (foldl (.|.) 0 ms) /= 0
 Also performs any X wrangling to achieve this, eg:
 starting and stopping grabs.
 -}
-convertEvent :: WmConfig -> WmReadOnly -> XState -> Event -> IO ([Ev], XState)
-convertEvent _ ro xstate MapRequestEvent{ev_window = w} = do
+convertEvent ::  WmReadOnly -> XState -> Event -> IO ([Ev], XState)
+convertEvent ro xstate MapRequestEvent{ev_window = w} = do
     win <- newWindow (roDisplay ro) (WinId w)
     return (maybeToList (evWantsMap <$> win), xstate)
-convertEvent _ _ xstate MapNotifyEvent{ev_window = w} =
+convertEvent  _ xstate MapNotifyEvent{ev_window = w} =
     return ([evWasMapped (WinId w)], xstate)
 -- todo configurereqeust will happen before map!
 -- should we create on create and not maprequest?
@@ -261,7 +261,6 @@ convertEvent _ _ xstate MapNotifyEvent{ev_window = w} =
 -- but then you have to queue up the action you were initially attempting.
 
 convertEvent
-    conf
     _
     xstate
     ConfigureRequestEvent
@@ -276,16 +275,15 @@ convertEvent
                 [ justIf (hasBits [cWX, cWY] vm) $
                     evWantsMove (WinId win) (fromIntegral x) (fromIntegral y)
                 , justIf (hasBits [cWWidth, cWHeight] vm) $
-                    let t d = fromIntegral d + 2 * wcBorderWidth conf - 1
+                    let t d = fromIntegral d + 2 * wcBorderWidth config - 1
                      in evWantsResize (WinId win) (t w) (t h)
                 ]
          in return (catMaybes es, xstate)
-convertEvent _ _ xstate DestroyWindowEvent{ev_window = w} =
+convertEvent _ xstate DestroyWindowEvent{ev_window = w} =
     return ([evWasDestroyed (WinId w)], xstate)
-convertEvent _ _ xstate CrossingEvent{ev_window = w} =
+convertEvent _ xstate CrossingEvent{ev_window = w} =
     return ([evMouseEntered (WinId w)], xstate)
 convertEvent
-    conf
     _
     xstate@XState{xsDragState = dragState}
     MotionEvent{ev_x = ex, ev_y = ey} = do
@@ -293,16 +291,15 @@ convertEvent
             y = fromIntegral ey
         return $ case dragState of
             NascentDrag win x0 y0 ->
-                if mag (x0, y0) (x, y) > (fromIntegral $ wcDragThreshold conf)
+                if mag (x0, y0) (x, y) > (fromIntegral $ wcDragThreshold config)
                     then
-                        ( [evDragStart conf win x0 y0, evDragMove conf x y]
+                        ( [evDragStart config win x0 y0, evDragMove config x y]
                         , xstate{xsDragState = DragInProgress}
                         )
-                    else ([evDragMove conf x y], xstate)
-            DragInProgress -> ([evDragMove conf x y], xstate)
+                    else ([evDragMove config x y], xstate)
+            DragInProgress -> ([evDragMove config x y], xstate)
             _ -> ([], xstate)
 convertEvent
-    _
     _
     xstate
     ConfigureEvent
@@ -315,7 +312,6 @@ convertEvent
         } =
         return ([evWasResized (WinId win) $ transformBounds x y w h bw], xstate)
 convertEvent
-    _
     WmReadOnly{roDisplay = d}
     xstate0
     KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et} = do
@@ -341,7 +337,6 @@ convertEvent
                     return ([], xstate0)
         if et == keyPress then down else up
 convertEvent
-    _
     WmReadOnly{roDisplay = d, roRoot = r}
     xstate@XState{xsDragState = dragState}
     ButtonEvent
@@ -378,29 +373,29 @@ convertEvent
             return ([evMouseClicked (WinId w) 3], xstate)
         | otherwise = do
             return ([], xstate{xsNakedMod = False})
-convertEvent _ _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} =
+convertEvent _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} =
     let result
             | m `elem` [notifyGrab, notifyUngrab] = trace "grab" ([], xstate)
             | et == focusIn = ([evFocusIn (WinId w)], xstate)
             | et == focusOut = ([evFocusOut (WinId w)], xstate)
             | otherwise = trace "otherwise" ([], xstate)
      in return result
-convertEvent _ _ xstate _ = do
+convertEvent _ xstate _ = do
     return ([], xstate)
 
-manageNewWindow :: WmConfig -> WmReadOnly -> WinId -> IO ()
-manageNewWindow wc ro wid = do
+manageNewWindow :: WmReadOnly -> WinId -> IO ()
+manageNewWindow ro wid = do
     let d = roDisplay ro
-    setWindowBorderWidth d (wid64 wid) (fromIntegral $ wcBorderWidth wc)
+    setWindowBorderWidth d (wid64 wid) (fromIntegral $ wcBorderWidth config)
     setWindowBorder d (wid64 wid) (roUnfocusedColour ro)
     selectInput d (wid64 wid) $ enterWindowMask .|. focusChangeMask
 
-performReqs :: WmConfig -> WmReadOnly -> [Request] -> IO ()
-performReqs wc ro = mapM_ go
+performReqs :: WmReadOnly -> [Request] -> IO ()
+performReqs ro = mapM_ go
   where
     d = roDisplay ro
     go (ReqMap wid) = mapWindow d (wid64 wid)
-    go (ReqManage wid) = manageNewWindow wc ro wid
+    go (ReqManage wid) = manageNewWindow ro wid
     go (ReqFocus wid) = setInputFocus d (wid64 wid) revertToParent currentTime
     go (ReqStyleFocused wid) = setWindowBorder d (wid64 wid) (roFocusedColour ro)
     go (ReqStyleUnfocused wid) = setWindowBorder d (wid64 wid) (roUnfocusedColour ro)
@@ -408,7 +403,7 @@ performReqs wc ro = mapM_ go
     go (ReqLower wid) = lowerWindow d (wid64 wid)
     go (ReqClose wid) = destroyWindow d (wid64 wid)
     go (ReqMoveResize wid (Bounds l r t b)) =
-        let bw = wcBorderWidth wc
+        let bw = wcBorderWidth config
             li = fromIntegral l
             ti = fromIntegral t
             wi = fromIntegral $ r - l - 2 * bw + 1
@@ -419,24 +414,24 @@ performReqs wc ro = mapM_ go
             ti = fromIntegral t
          in moveWindow d (wid64 wid) li ti
     go (ReqResize wid w h) =
-        let bw = wcBorderWidth wc
+        let bw = wcBorderWidth config
             wi = fromIntegral $ w - 2 * bw + 1
             hi = fromIntegral $ h - 2 * bw + 1
          in resizeWindow d (wid64 wid) wi hi
 
-handleOneEvent :: WmConfig -> WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
-handleOneEvent conf ro xstate0 event wm0 = do
-    (es, xstate1) <- convertEvent conf ro xstate0 event
+handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
+handleOneEvent ro xstate0 event wm0 = do
+    (es, xstate1) <- convertEvent ro xstate0 event
     logMsgLns $ ["event:", show event]
     -- one event can expand to multiple requests,
     -- accumulate them all before actually handling them
     let go (wm, acc) ev = second (acc ++) (ev wm)
         (wm1, reqs) = foldl go (wm0, []) es
-    performReqs conf ro reqs
+    performReqs ro reqs
     return (wm1, xstate1)
 
-handleEventsForever :: WmConfig -> WmReadOnly -> XState -> WmState -> IO (WmState, XState)
-handleEventsForever conf ro xstate0 wm0 = do
+handleEventsForever :: WmReadOnly -> XState -> WmState -> IO (WmState, XState)
+handleEventsForever ro xstate0 wm0 = do
     let d = roDisplay ro
     let getNextEvent ep = do
             e0 <- nextEvent d ep >> getEvent ep
@@ -445,9 +440,9 @@ handleEventsForever conf ro xstate0 wm0 = do
                 then whileM (checkTypedEvent d motionNotify ep) >> getEvent ep
                 else return e0
     ev <- allocaXEvent getNextEvent
-    (wm1, xstate1) <- handleOneEvent conf ro xstate0 ev wm0
+    (wm1, xstate1) <- handleOneEvent ro xstate0 ev wm0
     printDebug wm1
-    handleEventsForever conf ro xstate1 wm1
+    handleEventsForever ro xstate1 wm1
 
 showWindowBounds :: WmState -> IO ()
 showWindowBounds wm =
