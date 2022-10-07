@@ -96,6 +96,11 @@ config =
         , wcBorderWidth = 1
         }
 
+-- events specialized with config... perhaps a smell todo
+evDragStart' = evDragStart config
+evDragMove' = evDragMove config
+evCmdFullscreen' = evCmdFullscreen config
+
 keyBinds :: [(KeySym, KeyMask, BindAction)]
 keyBinds =
     [ (xK_Tab, modMask, BindActWm evCmdFocusNext)
@@ -105,7 +110,7 @@ keyBinds =
     , (xK_comma, modMask, BindActWm evCmdFocusPrev)
     , (xK_q, modMask, BindActWm evCmdClose)
     , (xK_m, modMask, BindActWm evCmdMaximize)
-    , (xK_f, modMask, BindActWm (evCmdFullscreen config))
+    , (xK_f, modMask, BindActWm evCmdFullscreen')
     , (xK_Escape, modMask, BindActWm evCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
     , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
@@ -246,20 +251,12 @@ hasBits ms v = fromIntegral v .&. (foldl (.|.) 0 ms) /= 0
 Also performs any X wrangling to achieve this, eg:
 starting and stopping grabs.
 -}
-convertEvent ::  WmReadOnly -> XState -> Event -> IO ([Ev], XState)
+convertEvent :: WmReadOnly -> XState -> Event -> IO ([Ev], XState)
 convertEvent ro xstate MapRequestEvent{ev_window = w} = do
     win <- newWindow (roDisplay ro) (WinId w)
     return (maybeToList (evWantsMap <$> win), xstate)
-convertEvent  _ xstate MapNotifyEvent{ev_window = w} =
+convertEvent _ xstate MapNotifyEvent{ev_window = w} =
     return ([evWasMapped (WinId w)], xstate)
--- todo configurereqeust will happen before map!
--- should we create on create and not maprequest?
--- yes.
--- all other ways of doing it are hacky and crap.
--- eg: if we receive an event for a window we don't have,
--- could emit a 'request create window with full details' request,
--- but then you have to queue up the action you were initially attempting.
-
 convertEvent
     _
     xstate
@@ -293,11 +290,11 @@ convertEvent
             NascentDrag win x0 y0 ->
                 if mag (x0, y0) (x, y) > (fromIntegral $ wcDragThreshold config)
                     then
-                        ( [evDragStart config win x0 y0, evDragMove config x y]
+                        ( [evDragStart' win x0 y0, evDragMove' x y]
                         , xstate{xsDragState = DragInProgress}
                         )
-                    else ([evDragMove config x y], xstate)
-            DragInProgress -> ([evDragMove config x y], xstate)
+                    else ([evDragMove' x y], xstate)
+            DragInProgress -> ([evDragMove' x y], xstate)
             _ -> ([], xstate)
 convertEvent
     _

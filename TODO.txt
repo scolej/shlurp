@@ -1,10 +1,6 @@
 TODO
 ====
 
-
-- fix the empty heads all over the place,
-  need an easy way to act on currently focused win, (if any)
-
 - remove the silly ring thing
 
 
@@ -32,8 +28,6 @@ think about
 still want to make use of long-press somehow. previous incarnation used
 timing to finish focus switching but this was clumsy. other ideas: hold
 super lock on a resize/move drag? open up a visual window list?
-
-maybe super-. and super-, would be better mru switchers
 
 fullscreen is implemented simply by resizing the window so its borders
 are outside the screen. this works but ...
@@ -96,8 +90,6 @@ generalized bindings, mouse / keys, eg: configurable from one place
 
 logging with levels
 
-think about event/command interface
-
 think about how to write a log on keypress with state info,
 which is currently not trivial
 
@@ -111,6 +103,8 @@ rethink the configurerequest-maprequest lifecycle.
 some windows (firefox) will send config before map
 
 better to delete windows on unmap than wait for destroy?
+
+logging - how to log from anywhere without trace and without crazy monad?
 
 
 
