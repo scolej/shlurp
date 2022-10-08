@@ -33,9 +33,6 @@ Why would I use this?
 How to use?
 -----------
 
-(note: currently it needs xlib bindings with some additions which are not
-in upstream yet; ie: you can't build it.)
-
 If you're brave:
 
     stack install

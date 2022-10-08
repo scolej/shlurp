@@ -23,5 +23,5 @@ executable xshlurp
   main-is: Main.hs
   build-depends: base, shlurp, time,
                  extra, process,
-                 X11 == 1.10.2.9
+                 X11 == 1.10.3.9
   default-language: Haskell2010

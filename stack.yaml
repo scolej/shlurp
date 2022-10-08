@@ -1,6 +1,5 @@
 resolver:
   url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/25.yaml
-
-packages:
-- .
-- /home/sjc/sources/X11
+extra-deps:
+- git: "https://github.com/xmonad/X11.git"
+  commit: "55829ab223bc924de81493681992dd1c75edf030"

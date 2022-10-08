@@ -3,7 +3,18 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    name: X11
+    version: 1.10.3.9
+    git: https://github.com/xmonad/X11.git
+    pantry-tree:
+      size: 3504
+      sha256: 74aa72765ba1910a367cff47b2a93cd57ea068b8cc567b1661e0ff06df09cd6c
+    commit: 55829ab223bc924de81493681992dd1c75edf030
+  original:
+    git: https://github.com/xmonad/X11.git
+    commit: 55829ab223bc924de81493681992dd1c75edf030
 snapshots:
 - completed:
     size: 587393

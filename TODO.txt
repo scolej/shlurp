@@ -52,6 +52,11 @@ bugs
 
 ha they're never ending. lower while focus switching is active. bugged.
 
+snaps from other screens are present on other screens
+
+multi-screen snap polish:
+shouldn't be able to snap to the outside of other screens bounds
+
 the other day, my gl window closed and then it seemed the whole thing
 was frozen; could not change focus or anything; but no busy loop and
 no crash. should do a time-based periodic debug dump.
@@ -132,9 +137,6 @@ eg: hold mod4,
 get a visual menu with list of windows,
 click on them to focus/raise,
 right click to minimize
-
-multi-screen snap polish:
-shouldn't be able to snap to the outside of other screens bounds
 
 how to resize one-handed?
 
