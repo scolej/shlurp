@@ -379,10 +379,10 @@ convertEvent
             return ([], xstate{xsNakedMod = False})
 convertEvent _ xstate FocusChangeEvent{ev_event_type = et, ev_window = w, ev_mode = m} =
     let result
-            | m `elem` [notifyGrab, notifyUngrab] = trace "grab" ([], xstate)
+            | m `elem` [notifyGrab, notifyUngrab] = ([], xstate)
             | et == focusIn = ([evFocusIn (WinId w)], xstate)
             | et == focusOut = ([evFocusOut (WinId w)], xstate)
-            | otherwise = trace "otherwise" ([], xstate)
+            | otherwise = ([], xstate)
      in return result
 convertEvent _ xstate _ = do
     return ([], xstate)
