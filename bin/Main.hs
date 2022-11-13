@@ -19,10 +19,10 @@ import Graphics.X11.Xlib.Misc
 import Graphics.X11.Xlib.Types
 import Graphics.X11.Xlib.Window
 import Numeric
-import System.IO
-import System.Process
-
 import Shlurp
+import System.IO
+import System.Posix.Process
+import System.Process
 
 logMsgLns :: [String] -> IO ()
 logMsgLns = logMsg . intercalate "\n"
@@ -91,9 +91,9 @@ data BindAction
 config :: WmConfig
 config =
     wcDefault
-        { wcSnapDist = 20
-        , wcSnapGap = 1
-        , wcBorderWidth = 1
+        { wcSnapDist = 10
+        , wcSnapGap = 2
+        , wcBorderWidth = 2
         }
 
 -- events specialized with config... perhaps a smell todo
@@ -113,8 +113,10 @@ keyBinds =
     , (xK_f, modMask, BindActWm evCmdFullscreen')
     , (xK_Escape, modMask, BindActWm evCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
-    , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
+    , (xK_Return, modMask, BindActIO $ void (spawnProcess "alacritty" []))
     , (xK_e, modMask, BindActIO $ void (spawnProcess "e" []))
+    , (xK_v, modMask, BindActIO $ void (spawnProcess "pavucontrol" []))
+    , (xK_q, modMask .|. shiftMask, BindActIO $ void (executeFile "xshlurp" True [] Nothing))
     ]
 
 grabKeys :: WmReadOnly -> IO ()
@@ -311,14 +313,19 @@ convertEvent
 convertEvent
     WmReadOnly{roDisplay = d}
     xstate0
-    KeyEvent{ev_subwindow = w, ev_keycode = kc, ev_event_type = et} = do
+    KeyEvent
+        { ev_subwindow = w
+        , ev_keycode = kc
+        , ev_event_type = et
+        , ev_state = km
+        } = do
         ks <- keycodeToKeysym d kc 0
         let xstateF = xstate0{xsNakedMod = False}
             xstateT = xstate0{xsNakedMod = True}
             down
                 | ks == modKeyL || ks == modKeyR = return ([], xstateT)
                 | otherwise =
-                    let mba = (\(_, _, a) -> a) <$> find (\(sym, _, _) -> sym == ks) keyBinds
+                    let mba = (\(_, _, a) -> a) <$> find (\(sym, mod, _) -> sym == ks && mod == km) keyBinds
                      in case mba of
                             Just (BindActWm ev) -> return ([ev], xstateF)
                             Just (BindActIO io) -> io >> return ([], xstateF)

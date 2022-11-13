@@ -182,26 +182,38 @@ wmWithFocused f wm =
         Just wid -> f wm wid
         Nothing -> (wm, [])
 
+focusHistoryToBack ::
+    -- | existing state
+    WmState ->
+    -- | window to go the back of the history
+    WinId ->
+    -- | new history
+    [WinId]
+focusHistoryToBack wm0 wid =
+    filter (/= wid) (wmFocusHistory wm0)
+        ++ filter (`elem` map winId (wmWindows wm0)) [wid]
+
 {- | Builds a new focus history given a list of windows to put at the
 front of the history.
 -}
-focusHistoryNew ::
+focusHistoryToFront ::
     -- | existing state
     WmState ->
     -- | front of the new focus history
     [WinId] ->
     -- | new state
     [WinId]
-focusHistoryNew wm0 wids =
-    let history0 = wmFocusHistory wm0
-        allWids = map winId (wmWindows wm0)
-        first = filter (`elem` allWids) (wids ++ history0) -- ensure we don't re-instate destroyed windows
-     in nub (first ++ allWids)
+focusHistoryToFront wm0 front =
+    let allWids = map winId (wmWindows wm0)
+        -- ensure we don't re-instate destroyed windows:
+        -- require that whatever windows have been supplied to go at the front
+        -- of the list are also included in the current window list.
+        front' = filter (`elem` allWids) front
+     in nub (front' ++ wmFocusHistory wm0 ++ allWids)
 
 -- | Ensure a width/height don't become too small.
 minSize :: Integer -> Integer -> (Integer, Integer)
-minSize w h =
-    (max w 20, max h 20) -- todo probably makes sense for it to be configurable
+minSize w h = (max w 20, max h 20) -- todo probably makes sense for it to be configurable
 
 -- | Ensure some bounds don't become too small.
 minBounds :: Bounds -> Bounds
@@ -209,25 +221,14 @@ minBounds (Bounds l r t b) =
     let (w, h) = minSize (r - l) (b - t)
      in Bounds l (l + w) t (t + h)
 
--- | Clip any of the seconds bounds' edges to be inside the first bounds' edges.
-clipBounds :: Bounds -> Bounds -> Bounds
-clipBounds (Bounds al ar at ab) (Bounds bl br bt bb) =
-    Bounds
-        (if bl < al then al else bl)
-        (if br > ar then ar else br)
-        (if bt < at then at else bt)
-        (if bb > ab then ab else bb)
-
 {- | An event is just a function which updates window state and
  may produce 0 or more requests.
 -}
 type Ev = WmState -> (WmState, [Request])
 
 evWantsMap :: Win -> Ev
-evWantsMap win wm0 =
-    let wid = winId win
-        wb = winBounds win
-        maybeResize = do
+evWantsMap win@Win{winId = wid, winBounds = wb} wm0 =
+    let maybeResize = do
             homeScreen <- homeBounds (wmScreenBounds wm0) wb
             if boundsContainsBounds wb homeScreen
                 then Nothing
@@ -253,7 +254,7 @@ evFocusIn :: WinId -> Ev
 evFocusIn wid wm0 =
     ( wm0
         { wmFocused = Just wid
-        , wmFocusHistory = focusHistoryNew wm0 [wid]
+        , wmFocusHistory = focusHistoryToFront wm0 [wid]
         }
     , [ReqStyleFocused wid]
     )
@@ -352,21 +353,11 @@ evCmdFullscreen WmConfig{wcBorderWidth = bw} =
 evCmdLower :: Ev
 evCmdLower =
     wmWithFocused
-        ( \wm wid ->
+        ( \wm0 wid ->
             -- we don't change focus history here or send any focus-change
             -- requests; after lowering, if there's a window under the cursor, X
             -- will send us a crossing-event and we'll change focus then.
-            --
-            -- hmmm kind of indicates that the only time we should ever change focus history is
-            -- on focus in/out events, otherwise we mismatch with x. ... not quite true: the only time we change the
-            -- _focused window_ is in response to events, we can change up the rest of the history as much as we like.
-            -- and this split also neatly solves all the sill `head`s everywhere: we split into focusedWindow and focusHistory
-            -- and focusedWindow is in history as well
-            --
-            -- then lower can still send the acted-on-win to the back of the focus history
-            --
-            -- still want another bind for cycle mru under mouse
-            (wm, [ReqLower wid])
+            (wm0{wmFocusHistory = focusHistoryToBack wm0 wid}, [ReqLower wid])
         )
 
 -- todo this event -> action mapping does not belong here
@@ -433,7 +424,7 @@ finishFocusChange :: WmState -> WmState
 finishFocusChange wm0 =
     let reinstatedHistory = case wmFocusRing wm0 of
             Just fr ->
-                focusHistoryNew
+                focusHistoryToFront
                     wm0
                     (ringFocus (fcsRing fr) : fcsOrig fr)
             Nothing -> wmFocusHistory wm0

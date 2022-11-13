@@ -122,6 +122,8 @@ windowDestroyed =
                -- todo focus?
                ]
 
+-- todo destroyed while switching
+
 focusFollowsMouse1 :: Test
 focusFollowsMouse1 =
     let wm0 = wmTwoWindows

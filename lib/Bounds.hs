@@ -34,3 +34,13 @@ boundsContains (x, y) (Bounds l r t b) =
 boundsContainsBounds :: Bounds -> Bounds -> Bool
 boundsContainsBounds (Bounds l r t b) bs =
     boundsContains (l, t) bs && boundsContains (r, b) bs
+
+-- | Clip any of the seconds bounds' edges to be inside the first bounds' edges.
+clipBounds :: Bounds -> Bounds -> Bounds
+clipBounds (Bounds al ar at ab) (Bounds bl br bt bb) =
+    Bounds
+        (if bl < al then al else bl)
+        (if br > ar then ar else br)
+        (if bt < at then at else bt)
+        (if bb > ab then ab else bb)
+
