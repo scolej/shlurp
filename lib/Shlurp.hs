@@ -182,34 +182,26 @@ wmWithFocused f wm =
         Just wid -> f wm wid
         Nothing -> (wm, [])
 
-focusHistoryToBack ::
-    -- | existing state
-    WmState ->
-    -- | window to go the back of the history
-    WinId ->
-    -- | new history
-    [WinId]
-focusHistoryToBack wm0 wid =
-    filter (/= wid) (wmFocusHistory wm0)
-        ++ filter (`elem` map winId (wmWindows wm0)) [wid]
-
-{- | Builds a new focus history given a list of windows to put at the
-front of the history.
+{- | Ensure the focus history doesn't contain any windows
+which aren't included in the window list, nor any dupes, and adds any
+missing windows to the end as well.
 -}
-focusHistoryToFront ::
-    -- | existing state
-    WmState ->
-    -- | front of the new focus history
-    [WinId] ->
-    -- | new state
-    [WinId]
-focusHistoryToFront wm0 front =
-    let allWids = map winId (wmWindows wm0)
-        -- ensure we don't re-instate destroyed windows:
-        -- require that whatever windows have been supplied to go at the front
-        -- of the list are also included in the current window list.
-        front' = filter (`elem` allWids) front
-     in nub (front' ++ wmFocusHistory wm0 ++ allWids)
+focusHistoryClean :: WmState -> WmState
+focusHistoryClean wm0@WmState{wmWindows = wins, wmFocusHistory = fh} =
+    let allWids = map winId wins
+     in wm0{wmFocusHistory = nub $ filter (`elem` allWids) fh ++ allWids}
+
+-- | Sends a window to the back of the history.
+focusHistoryToBack :: WinId -> WmState -> WmState
+focusHistoryToBack wid wm0 =
+    focusHistoryClean $
+        wm0{wmFocusHistory = filter (/= wid) (wmFocusHistory wm0) ++ [wid]}
+
+-- | Brings some windows to the front of the history.
+focusHistoryToFront :: [WinId] -> WmState -> WmState
+focusHistoryToFront front wm0 =
+    focusHistoryClean $
+        wm0{wmFocusHistory = front ++ wmFocusHistory wm0}
 
 -- | Ensure a width/height don't become too small.
 minSize :: Integer -> Integer -> (Integer, Integer)
@@ -252,10 +244,7 @@ evMouseEntered wid wm0 = (wm0, [ReqFocus wid])
 
 evFocusIn :: WinId -> Ev
 evFocusIn wid wm0 =
-    ( wm0
-        { wmFocused = Just wid
-        , wmFocusHistory = focusHistoryToFront wm0 [wid]
-        }
+    ( focusHistoryToFront [wid] $ wm0{wmFocused = Just wid}
     , [ReqStyleFocused wid]
     )
 
@@ -354,10 +343,9 @@ evCmdLower :: Ev
 evCmdLower =
     wmWithFocused
         ( \wm0 wid ->
-            -- we don't change focus history here or send any focus-change
-            -- requests; after lowering, if there's a window under the cursor, X
-            -- will send us a crossing-event and we'll change focus then.
-            (wm0{wmFocusHistory = focusHistoryToBack wm0 wid}, [ReqLower wid])
+            -- Don't change focused win, we'll get a FocusOut/In shortly
+            -- and do it there instead.
+            (focusHistoryToBack wid wm0, [ReqLower wid])
         )
 
 -- todo this event -> action mapping does not belong here
@@ -368,11 +356,7 @@ evMouseClicked wid button wm0
     | otherwise = (wm0, [])
 
 evCmdClose :: Ev
-evCmdClose =
-    wmWithFocused
-        ( \wm wid ->
-            (wm, [ReqClose wid])
-        )
+evCmdClose = wmWithFocused (\wm wid -> (wm, [ReqClose wid]))
 
 evCmdFocusNext :: Ev
 evCmdFocusNext wm0 =
@@ -422,16 +406,10 @@ but prepend the newly focused window.
 -}
 finishFocusChange :: WmState -> WmState
 finishFocusChange wm0 =
-    let reinstatedHistory = case wmFocusRing wm0 of
-            Just fr ->
-                focusHistoryToFront
-                    wm0
-                    (ringFocus (fcsRing fr) : fcsOrig fr)
-            Nothing -> wmFocusHistory wm0
-     in wm0
-            { wmFocusRing = Nothing
-            , wmFocusHistory = reinstatedHistory
-            }
+    let reinstateHist = case wmFocusRing wm0 of
+            Just fr -> focusHistoryToFront (ringFocus (fcsRing fr) : fcsOrig fr)
+            Nothing -> id
+     in reinstateHist $ wm0{wmFocusRing = Nothing}
 
 rotateRing :: (Ring WinId -> Ring WinId) -> WmState -> WmState
 rotateRing f wm0 =
