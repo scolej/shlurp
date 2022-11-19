@@ -89,6 +89,8 @@ data BindAction
       BindActWm Ev
     | -- | run an arbitrary IO action
       BindActIO (IO ())
+    | -- | binds an action which does IO to produce an event
+      BindActEvIO (WmReadOnly -> Event -> IO Ev)
 
 -- todo
 --
@@ -109,18 +111,26 @@ evDragStart' = evDragStart config
 evDragMove' = evDragMove config
 evCmdFullscreen' = evCmdFullscreen config
 
-bindFocusNextUnderMouse :: BindAction
-bindFocusNextUnderMouse =
-    BindActKey
-        ( \KeyEvent{ev_x_root = x, ev_y_root = y} ->
-            evCmdFocusNextUnderMouse ((fromIntegral x), (fromIntegral y))
-        )
+-- bindFocusNextUnderMouse :: BindAction
+-- bindFocusNextUnderMouse =
+--     BindActKey
+--         ( \KeyEvent{ev_x_root = x, ev_y_root = y} ->
+--             evCmdFocusNextUnderMouse ((fromIntegral x), (fromIntegral y))
+--         )
+
+bindFocusNextUnderMouse1 :: BindAction
+bindFocusNextUnderMouse1 =
+    BindActEvIO $ \WmReadOnly{roDisplay = dsp, roRoot = root} KeyEvent{ev_x_root = x, ev_y_root = y} -> do
+        (_, _, stackOrder) <- queryTree dsp root
+        let wids = reverse $ map WinId stackOrder
+        logMsg $ "stashed stack order: " ++ show wids
+        return $ evCmdFocusNextUnderMouse wids (fromIntegral x, fromIntegral y)
 
 keyBinds :: [(KeySym, KeyMask, BindAction)]
 keyBinds =
-    [ (xK_Tab, modMask, bindFocusNextUnderMouse)
+    [ (xK_Tab, modMask, bindFocusNextUnderMouse1)
     , (xK_space, modMask, BindActWm evCmdFocusNext)
-    , (xK_period, modMask, bindFocusNextUnderMouse)
+    , (xK_period, modMask, bindFocusNextUnderMouse1)
     , (xK_grave, modMask, BindActWm evCmdFocusPrev)
     , (xK_comma, modMask, BindActWm evCmdFocusPrev)
     , (xK_q, modMask, BindActWm evCmdClose)
@@ -326,7 +336,7 @@ convertEvent
         } =
         return ([evWasResized (WinId win) $ transformBounds x y w h bw], xstate)
 convertEvent
-    WmReadOnly{roDisplay = d}
+    ro@WmReadOnly{roDisplay = d}
     xstate0
     event@KeyEvent
         { ev_subwindow = w
@@ -347,6 +357,7 @@ convertEvent
                                 BindActKey f -> return ([f event], xstateF)
                                 BindActWm ev -> return ([ev], xstateF)
                                 BindActIO io -> io >> return ([], xstateF)
+                                BindActEvIO io -> io ro event >>= \ev -> return ([ev], xstateF)
             up
                 | ks == modKeyL || ks == modKeyR = do
                     if xsNakedMod xstate0
@@ -439,6 +450,9 @@ performReqs ro = mapM_ go
             wi = fromIntegral $ w - 2 * bw + 1
             hi = fromIntegral $ h - 2 * bw + 1
          in resizeWindow d (wid64 wid) wi hi
+    go (ReqRestack wids) = do
+      logMsg $ "restacking: " ++ show wids
+      restackWindows d (map wid64 wids)
 
 handleOneEvent :: WmReadOnly -> XState -> Event -> WmState -> IO (WmState, XState)
 handleOneEvent ro xstate0 event wm0 = do

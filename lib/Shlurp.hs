@@ -76,6 +76,7 @@ data Request
       ReqStyleFocused WinId
     | ReqStyleUnfocused WinId
     | ReqClose WinId
+    | ReqRestack [WinId]
     deriving (Eq, Show)
 
 data DragResize = DragResize
@@ -111,6 +112,7 @@ data WmState = WmState
       wmDragResize :: Maybe DragResize
     , -- | screen bounds
       wmScreenBounds :: [Bounds]
+    , wmStackOrder :: Maybe [WinId]
     }
 
 data WmConfig = WmConfig
@@ -145,6 +147,7 @@ wmBlankState =
         , wmFocusRing = Nothing
         , wmDragResize = Nothing
         , wmScreenBounds = []
+        , wmStackOrder = Nothing
         }
 
 findWindow :: WmState -> WinId -> Maybe Win
@@ -359,12 +362,15 @@ evMouseClicked wid button wm0
 evCmdClose :: Ev
 evCmdClose = wmWithFocused (\wm wid -> (wm, [ReqClose wid]))
 
-evCmdFocusNextUnderMouse :: (Integer, Integer) -> Ev
-evCmdFocusNextUnderMouse pos wm0 =
+evCmdFocusNextUnderMouse :: [WinId] -> (Integer, Integer) -> Ev
+evCmdFocusNextUnderMouse stackOrder pos wm0 =
     let f win = boundsContains pos (winBounds win)
         wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
-     in ( wm1
+        -- only update the stack order if there's nothing there
+        so = case wmStackOrder wm0 of Nothing -> stackOrder
+                                      Just a -> a
+     in ( wm1{wmStackOrder = Just so}
         , case mfoc of
             Just foc -> [ReqFocus foc, ReqRaise foc]
             Nothing -> []
@@ -391,7 +397,14 @@ evCmdFocusPrev wm0 =
         )
 
 evCmdFocusFinished :: Ev
-evCmdFocusFinished wm0 = (finishFocusChange wm0, [])
+evCmdFocusFinished wm0 =
+    let wm1 = finishFocusChange wm0
+        newStackOrder = do
+            -- f <- headMay $ wmFocusHistory wm1
+            f <- wmFocused wm1
+            so <- wmStackOrder wm0
+            return $ nub (f : so)
+     in (wm1, maybeToList $ ReqRestack <$> newStackOrder)
 
 containingScreenBounds :: WmState -> WinId -> Maybe Bounds
 containingScreenBounds wm wid = do
@@ -421,7 +434,11 @@ finishFocusChange wm0 =
     let reinstateHist = case wmFocusRing wm0 of
             Just fr -> focusHistoryToFront (ringFocus (fcsRing fr) : fcsOrig fr)
             Nothing -> id
-     in reinstateHist $ wm0{wmFocusRing = Nothing}
+     in reinstateHist $
+            wm0
+                { wmFocusRing = Nothing
+                , wmStackOrder = Nothing
+                }
 
 rotateRing :: (Ring WinId -> Ring WinId) -> WmState -> WmState
 rotateRing f wm0 =
@@ -443,12 +460,17 @@ wmInitFocusRing f wm0
     | null (wmFocusHistory wm0) || isJust (wmFocusRing wm0) = wm0
     | otherwise =
         let f' wid = fromMaybe False (f <$> findWindow wm0 wid)
+            wins = filter f' (wmFocusHistory wm0)
             mf =
-                FocusCycleState
-                    { fcsRing = ringFromList $ filter f' (wmFocusHistory wm0)
-                    , fcsOrig = wmFocusHistory wm0
-                    }
-         in wm0{wmFocusRing = Just mf}
+                if null wins
+                    then Nothing
+                    else
+                        Just $
+                            FocusCycleState
+                                { fcsRing = ringFromList $ wins
+                                , fcsOrig = wmFocusHistory wm0
+                                }
+         in wm0{wmFocusRing = mf}
 
 -- | Add a window to the window list.
 addWindow :: Win -> WmState -> WmState
