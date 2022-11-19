@@ -90,6 +90,12 @@ data BindAction
     | -- | run an arbitrary IO action
       BindActIO (IO ())
 
+-- todo
+--
+-- could have another action type which does IO to create the event,
+-- starting to switch could accept the window stacking order as in input,
+-- which can then be restored afterwards
+
 config :: WmConfig
 config =
     wcDefault
@@ -103,18 +109,18 @@ evDragStart' = evDragStart config
 evDragMove' = evDragMove config
 evCmdFullscreen' = evCmdFullscreen config
 
+bindFocusNextUnderMouse :: BindAction
+bindFocusNextUnderMouse =
+    BindActKey
+        ( \KeyEvent{ev_x_root = x, ev_y_root = y} ->
+            evCmdFocusNextUnderMouse ((fromIntegral x), (fromIntegral y))
+        )
+
 keyBinds :: [(KeySym, KeyMask, BindAction)]
 keyBinds =
-    [ (xK_Tab, modMask, BindActWm evCmdFocusNext)
+    [ (xK_Tab, modMask, bindFocusNextUnderMouse)
     , (xK_space, modMask, BindActWm evCmdFocusNext)
-    ,
-        ( xK_period
-        , modMask
-        , BindActKey
-            ( \KeyEvent{ev_x_root = x, ev_y_root = y} ->
-                evCmdFocusNextUnderMouse ((fromIntegral x), (fromIntegral y))
-            )
-        )
+    , (xK_period, modMask, bindFocusNextUnderMouse)
     , (xK_grave, modMask, BindActWm evCmdFocusPrev)
     , (xK_comma, modMask, BindActWm evCmdFocusPrev)
     , (xK_q, modMask, BindActWm evCmdClose)
@@ -338,9 +344,9 @@ convertEvent
                      in case mba of
                             Nothing -> return ([], xstateF)
                             Just binding -> case binding of
-                              BindActKey f -> return ([f event], xstateF)
-                              BindActWm ev -> return ([ev], xstateF)
-                              BindActIO io -> io >> return ([], xstateF)
+                                BindActKey f -> return ([f event], xstateF)
+                                BindActWm ev -> return ([ev], xstateF)
+                                BindActIO io -> io >> return ([], xstateF)
             up
                 | ks == modKeyL || ks == modKeyR = do
                     if xsNakedMod xstate0
