@@ -362,29 +362,25 @@ evMouseClicked wid button wm0
 evCmdClose :: Ev
 evCmdClose = wmWithFocused (\wm wid -> (wm, [ReqClose wid]))
 
-evCmdFocusNextUnderMouse :: [WinId] -> (Integer, Integer) -> Ev
-evCmdFocusNextUnderMouse stackOrder pos wm0 =
-    let f win = boundsContains pos (winBounds win)
-        wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
+evCmdFocusNextFilter :: (Win -> Bool) -> Maybe [WinId] -> Ev
+evCmdFocusNextFilter f stackOrder wm0 =
+    let wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
         -- only update the stack order if there's nothing there
-        so = case wmStackOrder wm0 of Nothing -> stackOrder
-                                      Just a -> a
-     in ( wm1{wmStackOrder = Just so}
+        so = case wmStackOrder wm0 of
+            Nothing -> stackOrder
+            Just a -> Just a
+     in ( wm1{wmStackOrder = so}
         , case mfoc of
             Just foc -> [ReqFocus foc, ReqRaise foc]
             Nothing -> []
         )
 
-evCmdFocusNext :: Ev
-evCmdFocusNext wm0 =
-    let wm1 = rotateRing ringRotate $ wmInitFocusRing (const True) wm0
-        mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
-     in ( wm1
-        , case mfoc of
-            Just foc -> [ReqFocus foc, ReqRaise foc]
-            Nothing -> []
-        )
+evCmdFocusNext :: Maybe [WinId] -> Ev
+evCmdFocusNext = evCmdFocusNextFilter (const True)
+
+evCmdFocusNextUnderMouse :: (Integer, Integer) -> Maybe [WinId] -> Ev
+evCmdFocusNextUnderMouse pos = evCmdFocusNextFilter (\win -> boundsContains pos (winBounds win))
 
 evCmdFocusPrev :: Ev
 evCmdFocusPrev wm0 =
@@ -400,7 +396,6 @@ evCmdFocusFinished :: Ev
 evCmdFocusFinished wm0 =
     let wm1 = finishFocusChange wm0
         newStackOrder = do
-            -- f <- headMay $ wmFocusHistory wm1
             f <- wmFocused wm1
             so <- wmStackOrder wm0
             return $ nub (f : so)
