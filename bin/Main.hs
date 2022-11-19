@@ -83,7 +83,9 @@ modKeyR = xK_Super_R
 
 -- | Different actions which can be bound.
 data BindAction
-    = -- | trigger an event which doesn't care about the source window
+    = -- | trigger an event from a key press
+      BindActKey (Event -> Ev)
+    | -- | trigger an event which doesn't care about the source window
       BindActWm Ev
     | -- | run an arbitrary IO action
       BindActIO (IO ())
@@ -105,7 +107,14 @@ keyBinds :: [(KeySym, KeyMask, BindAction)]
 keyBinds =
     [ (xK_Tab, modMask, BindActWm evCmdFocusNext)
     , (xK_space, modMask, BindActWm evCmdFocusNext)
-    , (xK_period, modMask, BindActWm evCmdFocusNext)
+    ,
+        ( xK_period
+        , modMask
+        , BindActKey
+            ( \KeyEvent{ev_x_root = x, ev_y_root = y} ->
+                evCmdFocusNextUnderMouse ((fromIntegral x), (fromIntegral y))
+            )
+        )
     , (xK_grave, modMask, BindActWm evCmdFocusPrev)
     , (xK_comma, modMask, BindActWm evCmdFocusPrev)
     , (xK_q, modMask, BindActWm evCmdClose)
@@ -313,7 +322,7 @@ convertEvent
 convertEvent
     WmReadOnly{roDisplay = d}
     xstate0
-    KeyEvent
+    event@KeyEvent
         { ev_subwindow = w
         , ev_keycode = kc
         , ev_event_type = et
@@ -327,9 +336,11 @@ convertEvent
                 | otherwise =
                     let mba = (\(_, _, a) -> a) <$> find (\(sym, mod, _) -> sym == ks && mod == km) keyBinds
                      in case mba of
-                            Just (BindActWm ev) -> return ([ev], xstateF)
-                            Just (BindActIO io) -> io >> return ([], xstateF)
                             Nothing -> return ([], xstateF)
+                            Just binding -> case binding of
+                              BindActKey f -> return ([f event], xstateF)
+                              BindActWm ev -> return ([ev], xstateF)
+                              BindActIO io -> io >> return ([], xstateF)
             up
                 | ks == modKeyL || ks == modKeyR = do
                     if xsNakedMod xstate0

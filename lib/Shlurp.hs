@@ -28,6 +28,7 @@ module Shlurp (
     evCmdLower,
     evMouseClicked,
     evCmdClose,
+    evCmdFocusNextUnderMouse,
     evCmdFocusNext,
     evCmdFocusPrev,
     evCmdFocusFinished,
@@ -358,9 +359,20 @@ evMouseClicked wid button wm0
 evCmdClose :: Ev
 evCmdClose = wmWithFocused (\wm wid -> (wm, [ReqClose wid]))
 
+evCmdFocusNextUnderMouse :: (Integer, Integer) -> Ev
+evCmdFocusNextUnderMouse pos wm0 =
+    let f win = boundsContains pos (winBounds win)
+        wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
+        mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
+     in ( wm1
+        , case mfoc of
+            Just foc -> [ReqFocus foc, ReqRaise foc]
+            Nothing -> []
+        )
+
 evCmdFocusNext :: Ev
 evCmdFocusNext wm0 =
-    let wm1 = rotateRing ringRotate $ wmInitFocusRing wm0
+    let wm1 = rotateRing ringRotate $ wmInitFocusRing (const True) wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
      in ( wm1
         , case mfoc of
@@ -370,7 +382,7 @@ evCmdFocusNext wm0 =
 
 evCmdFocusPrev :: Ev
 evCmdFocusPrev wm0 =
-    let wm1 = rotateRing ringRotateBack $ wmInitFocusRing wm0
+    let wm1 = rotateRing ringRotateBack $ wmInitFocusRing (const True) wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
      in ( wm1
         , case mfoc of
@@ -414,7 +426,7 @@ finishFocusChange wm0 =
 rotateRing :: (Ring WinId -> Ring WinId) -> WmState -> WmState
 rotateRing f wm0 =
     case do
-        let wm1 = wmInitFocusRing wm0
+        let wm1 = wmInitFocusRing (const True) wm0
         fcs1 <- wmFocusRing wm1
         let fr2 = f (fcsRing fcs1)
         let fcs2 = fcs1{fcsRing = fr2}
@@ -422,14 +434,18 @@ rotateRing f wm0 =
         Nothing -> wm0
         Just wm -> wm
 
-wmInitFocusRing :: WmState -> WmState
-wmInitFocusRing wm0
-    | null (wmFocusHistory wm0) || isJust (wmFocusRing wm0) =
-        wm0
+wmInitFocusRing ::
+    -- | Filter to restrict which windows are included in the focus ring.
+    (Win -> Bool) ->
+    WmState ->
+    WmState
+wmInitFocusRing f wm0
+    | null (wmFocusHistory wm0) || isJust (wmFocusRing wm0) = wm0
     | otherwise =
-        let mf =
+        let f' wid = fromMaybe False (f <$> findWindow wm0 wid)
+            mf =
                 FocusCycleState
-                    { fcsRing = ringFromList $ wmFocusHistory wm0
+                    { fcsRing = ringFromList $ filter f' (wmFocusHistory wm0)
                     , fcsOrig = wmFocusHistory wm0
                     }
          in wm0{wmFocusRing = Just mf}
