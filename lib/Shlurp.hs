@@ -244,7 +244,13 @@ evWasDestroyed :: WinId -> Ev
 evWasDestroyed wid wm0 = (wmForgetWindow wid wm0, [])
 
 evMouseEntered :: WinId -> Ev
-evMouseEntered wid wm0 = (wm0, [ReqFocus wid])
+evMouseEntered wid wm0 =
+  -- only respond to mouse-entered if we're not currently switching
+  -- windows, when windows are raised, as is the case when switching, X
+  -- will generate a mouse-entered event even if the mouse hasn't moved; we
+  -- don't want to respond to this.
+    let evs = if isJust (wmFocusRing wm0) then [] else [ReqFocus wid]
+     in (wm0, evs)
 
 evFocusIn :: WinId -> Ev
 evFocusIn wid wm0 =
@@ -367,12 +373,15 @@ evCmdFocusNextFilter f stackOrder wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
         -- only update the stack order if there's nothing there
-        so = case wmStackOrder wm0 of
+        so = fromMaybe [] $ case wmStackOrder wm0 of
             Nothing -> stackOrder
             Just a -> Just a
-     in ( wm1{wmStackOrder = so}
-        , case mfoc of
-            Just foc -> [ReqFocus foc, ReqRaise foc]
+     in ( wm1{wmStackOrder = Just so}
+        , -- todo too much maybe shenanigans
+          case mfoc of
+            Just foc ->
+                let newStackOrder = nub (foc : so)
+                 in [ReqFocus foc, ReqRestack newStackOrder]
             Nothing -> []
         )
 
@@ -386,20 +395,19 @@ evCmdFocusPrev :: Ev
 evCmdFocusPrev wm0 =
     let wm1 = rotateRing ringRotateBack $ wmInitFocusRing (const True) wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
+        so = fromMaybe [] (wmStackOrder wm0)
      in ( wm1
         , case mfoc of
-            Just foc -> [ReqFocus foc, ReqRaise foc]
+            Just foc ->
+                let newStackOrder = nub (foc : so)
+                 in [ReqFocus foc, ReqRestack newStackOrder]
             Nothing -> []
         )
 
 evCmdFocusFinished :: Ev
 evCmdFocusFinished wm0 =
     let wm1 = finishFocusChange wm0
-        newStackOrder = do
-            f <- wmFocused wm1
-            so <- wmStackOrder wm0
-            return $ nub (f : so)
-     in (wm1, maybeToList $ ReqRestack <$> newStackOrder)
+     in (wm1, [])
 
 containingScreenBounds :: WmState -> WinId -> Maybe Bounds
 containingScreenBounds wm wid = do

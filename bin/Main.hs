@@ -92,6 +92,10 @@ data BindAction
     | -- | binds an action which does IO to produce an event
       BindActEvIO (WmReadOnly -> Event -> IO Ev)
 
+-- todo ^^^
+--
+-- this is some nasty shit
+
 -- todo
 --
 -- could have another action type which does IO to create the event,
@@ -101,8 +105,8 @@ data BindAction
 config :: WmConfig
 config =
     wcDefault
-        { wcSnapDist = 10
-        , wcSnapGap = 2
+        { wcSnapDist = 20
+        , wcSnapGap = 1
         , wcBorderWidth = 2
         }
 
@@ -111,13 +115,17 @@ evDragStart' = evDragStart config
 evDragMove' = evDragMove config
 evCmdFullscreen' = evCmdFullscreen config
 
-bindFocusNext :: BindAction
-bindFocusNext =
-    BindActEvIO $ \WmReadOnly{roDisplay = dsp, roRoot = root} KeyEvent{ev_x_root = x, ev_y_root = y} -> do
+makeFocusNext :: WmReadOnly -> Event -> IO Ev
+makeFocusNext
+    WmReadOnly{roDisplay = dsp, roRoot = root}
+    KeyEvent{ev_x_root = x, ev_y_root = y} = do
         (_, _, stackOrder) <- queryTree dsp root
         let wids = reverse $ map WinId stackOrder
         logMsg $ "stashed stack order: " ++ show wids
         return $ evCmdFocusNext (Just wids)
+
+bindFocusNext :: BindAction
+bindFocusNext = BindActEvIO makeFocusNext
 
 bindFocusNextUnderMouse1 :: BindAction
 bindFocusNextUnderMouse1 =
@@ -363,7 +371,8 @@ convertEvent
                 | ks == modKeyL || ks == modKeyR = do
                     if xsNakedMod xstate0
                         then do
-                            return ([evCmdFocusNext Nothing, evCmdFocusFinished], xstateF)
+                            ev <- makeFocusNext ro event
+                            return ([ev, evCmdFocusFinished], xstateF)
                         else do
                             return ([evCmdFocusFinished], xstateF)
                 | otherwise = do
