@@ -145,6 +145,8 @@ keyBinds =
     , (xK_q, modMask, BindActWm evCmdClose)
     , (xK_m, modMask, BindActWm evCmdMaximize)
     , (xK_f, modMask, BindActWm evCmdFullscreen')
+    , (xK_bracketleft, modMask, BindActWm (evCmdScreenProportionalResize config (0, 0.5, 0, 1)))
+    , (xK_bracketright, modMask, BindActWm (evCmdScreenProportionalResize config (0.5, 1.0, 0, 1)))
     , (xK_Escape, modMask, BindActWm evCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
     , (xK_Return, modMask, BindActIO $ void (spawnProcess "alacritty" []))

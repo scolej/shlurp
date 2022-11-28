@@ -32,6 +32,7 @@ module Shlurp (
     evCmdFocusNext,
     evCmdFocusPrev,
     evCmdFocusFinished,
+    evCmdScreenProportionalResize,
 ) where
 
 import Data.List
@@ -332,6 +333,23 @@ evCmdMaximize =
     wmWithFocused
         ( \wm wid ->
             let bs = containingScreenBounds wm wid
+             in (wm, catMaybes [ReqMoveResize wid <$> bs])
+        )
+
+evCmdScreenProportionalResize :: WmConfig -> (Double, Double, Double, Double) -> Ev
+evCmdScreenProportionalResize conf (l, r, t, b) =
+    wmWithFocused
+        ( \wm wid ->
+            let snap = snapWindowBounds conf wm wid False
+                bs = do
+                  Bounds sl sr st sb <- containingScreenBounds wm wid
+                  let w = (fromIntegral $ sr - sl) :: Double
+                      h = (fromIntegral $ sb - st) :: Double
+                      wl = round $ fromIntegral sl + l * w
+                      wr = round $ fromIntegral sl + r * w
+                      wt = round $ fromIntegral st + t * h
+                      wb = round $ fromIntegral st + b * h
+                  return $ snap $ Bounds wl wr wt wb
              in (wm, catMaybes [ReqMoveResize wid <$> bs])
         )
 
