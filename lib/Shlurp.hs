@@ -40,6 +40,7 @@ import Data.Maybe
 import Data.Word
 import Numeric
 import Safe hiding (at)
+import Control.Monad
 
 import Bounds
 import Ring
@@ -620,7 +621,4 @@ snapBounds wc otherBounds fixSize bs@(Bounds l r t b) =
 
 -- | Finds the smallest of two values.
 smallestPresent :: Maybe Integer -> Maybe Integer -> Integer
-smallestPresent Nothing (Just x) = x
-smallestPresent (Just x) Nothing = x
-smallestPresent (Just a) (Just b) = min a b
-smallestPresent _ _ = 0
+smallestPresent a b = fromMaybe 0 ((liftM2 min) a b)
