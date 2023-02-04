@@ -40,7 +40,6 @@ import Data.Maybe
 import Data.Word
 import Numeric
 import Safe hiding (at)
-import Control.Monad
 
 import Bounds
 import Ring
@@ -114,7 +113,10 @@ data WmState = WmState
       wmDragResize :: Maybe DragResize
     , -- | screen bounds
       wmScreenBounds :: [Bounds]
-    , wmStackOrder :: Maybe [WinId]
+    , -- | order that the windows are stacked in, if we care. we capture this
+      -- from some events (eg: focus switching) so we can restore the
+      -- original stacking order.
+      wmStackOrder :: Maybe [WinId]
     }
 
 data WmConfig = WmConfig
@@ -247,10 +249,10 @@ evWasDestroyed wid wm0 = (wmForgetWindow wid wm0, [])
 
 evMouseEntered :: WinId -> Ev
 evMouseEntered wid wm0 =
-  -- only respond to mouse-entered if we're not currently switching
-  -- windows, when windows are raised, as is the case when switching, X
-  -- will generate a mouse-entered event even if the mouse hasn't moved; we
-  -- don't want to respond to this.
+    -- only respond to mouse-entered if we're not currently switching
+    -- windows, when windows are raised, as is the case when switching, X
+    -- will generate a mouse-entered event even if the mouse hasn't moved; we
+    -- don't want to respond to this.
     let evs = if isJust (wmFocusRing wm0) then [] else [ReqFocus wid]
      in (wm0, evs)
 
@@ -343,14 +345,14 @@ evCmdScreenProportionalResize conf (l, r, t, b) =
         ( \wm wid ->
             let snap = snapWindowBounds conf wm wid False
                 bs = do
-                  Bounds sl sr st sb <- containingScreenBounds wm wid
-                  let w = (fromIntegral $ sr - sl) :: Double
-                      h = (fromIntegral $ sb - st) :: Double
-                      wl = round $ fromIntegral sl + l * w
-                      wr = round $ fromIntegral sl + r * w
-                      wt = round $ fromIntegral st + t * h
-                      wb = round $ fromIntegral st + b * h
-                  return $ snap $ Bounds wl wr wt wb
+                    Bounds sl sr st sb <- containingScreenBounds wm wid
+                    let w = (fromIntegral $ sr - sl) :: Double
+                        h = (fromIntegral $ sb - st) :: Double
+                        wl = round $ fromIntegral sl + l * w
+                        wr = round $ fromIntegral sl + r * w
+                        wt = round $ fromIntegral st + t * h
+                        wb = round $ fromIntegral st + b * h
+                    return $ snap $ Bounds wl wr wt wb
              in (wm, catMaybes [ReqMoveResize wid <$> bs])
         )
 
@@ -392,7 +394,9 @@ evCmdFocusNextFilter :: (Win -> Bool) -> Maybe [WinId] -> Ev
 evCmdFocusNextFilter f stackOrder wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
         mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
-        -- only update the stack order if there's nothing there
+        -- only update the stack order if there's nothing there, we're
+        -- preserving the original stack order so we can restore it when we
+        -- finish switching focus.
         so = fromMaybe [] $ case wmStackOrder wm0 of
             Nothing -> stackOrder
             Just a -> Just a
@@ -410,7 +414,7 @@ evCmdFocusNext = evCmdFocusNextFilter (const True)
 
 evCmdFocusNextUnderMouse :: (Integer, Integer) -> Maybe [WinId] -> Ev
 evCmdFocusNextUnderMouse pos =
-  evCmdFocusNextFilter (\win -> boundsContains pos (winBounds win))
+    evCmdFocusNextFilter (\win -> boundsContains pos (winBounds win))
 
 evCmdFocusPrev :: Ev
 evCmdFocusPrev wm0 =

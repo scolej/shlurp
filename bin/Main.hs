@@ -105,9 +105,9 @@ data BindAction
 config :: WmConfig
 config =
     wcDefault
-        { wcSnapDist = 20
-        , wcSnapGap = 1
-        , wcBorderWidth = 2
+        { wcSnapDist = 10
+        , wcSnapGap = 0
+        , wcBorderWidth = 3
         }
 
 -- events specialized with config... perhaps a smell todo
@@ -194,8 +194,8 @@ main = do
 
     let cm = defaultColormap d (defaultScreen d)
         getColour hex = color_pixel . fst <$> allocNamedColor d cm hex
-    focusedColour <- getColour "#94d2bd"
-    unfocusedColour <- getColour "#005f73"
+    focusedColour <- getColour "#2b00ff"
+    unfocusedColour <- getColour "#110069"
 
     let ro =
             WmReadOnly
