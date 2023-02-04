@@ -387,6 +387,7 @@ evMouseClicked wid button wm0
 evCmdClose :: Ev
 evCmdClose = wmWithFocused (\wm wid -> (wm, [ReqClose wid]))
 
+-- | Focus the next window which matches the given predicate.
 evCmdFocusNextFilter :: (Win -> Bool) -> Maybe [WinId] -> Ev
 evCmdFocusNextFilter f stackOrder wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
@@ -408,7 +409,8 @@ evCmdFocusNext :: Maybe [WinId] -> Ev
 evCmdFocusNext = evCmdFocusNextFilter (const True)
 
 evCmdFocusNextUnderMouse :: (Integer, Integer) -> Maybe [WinId] -> Ev
-evCmdFocusNextUnderMouse pos = evCmdFocusNextFilter (\win -> boundsContains pos (winBounds win))
+evCmdFocusNextUnderMouse pos =
+  evCmdFocusNextFilter (\win -> boundsContains pos (winBounds win))
 
 evCmdFocusPrev :: Ev
 evCmdFocusPrev wm0 =
@@ -621,4 +623,7 @@ snapBounds wc otherBounds fixSize bs@(Bounds l r t b) =
 
 -- | Finds the smallest of two values.
 smallestPresent :: Maybe Integer -> Maybe Integer -> Integer
-smallestPresent a b = fromMaybe 0 ((liftM2 min) a b)
+smallestPresent Nothing (Just x) = x
+smallestPresent (Just x) Nothing = x
+smallestPresent (Just a) (Just b) = min a b
+smallestPresent _ _ = 0

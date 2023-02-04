@@ -149,7 +149,7 @@ keyBinds =
     , (xK_bracketright, modMask, BindActWm (evCmdScreenProportionalResize config (0.5, 1.0, 0, 1)))
     , (xK_Escape, modMask, BindActWm evCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
-    , (xK_Return, modMask, BindActIO $ void (spawnProcess "alacritty" []))
+    , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
     , (xK_e, modMask, BindActIO $ void (spawnProcess "e" []))
     , (xK_v, modMask, BindActIO $ void (spawnProcess "pavucontrol" []))
     , (xK_q, modMask .|. shiftMask, BindActIO $ void (executeFile "xshlurp" True [] Nothing))
