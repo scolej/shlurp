@@ -343,7 +343,7 @@ mruFocusSwitching =
                     ( evCmdFocusNext Nothing -- switch
                     , \wm cs ->
                         [ "window 0 is still focused" ~: wmFocused wm ~?= Just (WinId 0)
-                        , "requests focus for 1" ~: cs ~?= [ReqFocus (WinId 1), ReqRaise (WinId 1)]
+                        , "requests focus for 1" ~: cs ~?= [ReqFocus (WinId 1), ReqRestack [WinId 1]]
                         ]
                     )
                 ,
@@ -361,7 +361,7 @@ mruFocusSwitching =
                     ( evCmdFocusNext Nothing -- switch back
                     , \wm cs ->
                         [ "window 1 is still focused" ~: wmFocused wm ~?= Just (WinId 1)
-                        , "requests focus for 0" ~: cs ~?= [ReqFocus (WinId 0), ReqRaise (WinId 0)]
+                        , "requests focus for 0" ~: cs ~?= [ReqFocus (WinId 0), ReqRestack [WinId 0]]
                         ]
                     )
                 ,
@@ -379,7 +379,7 @@ mruFocusSwitching =
                     ( evCmdFocusNext Nothing -- double switch
                     , \wm cs ->
                         [ "window 0 is still focused" ~: wmFocused wm ~?= Just (WinId 0)
-                        , "requests focus for 1" ~: cs ~?= [ReqFocus (WinId 1), ReqRaise (WinId 1)]
+                        , "requests focus for 1" ~: cs ~?= [ReqFocus (WinId 1), ReqRestack [WinId 1]]
                         ]
                     )
                 ,
@@ -390,7 +390,7 @@ mruFocusSwitching =
                     ( evCmdFocusNext Nothing
                     , \wm cs ->
                         [ "window 1 is still focused" ~: wmFocused wm ~?= Just (WinId 1)
-                        , "requests focus for 2" ~: cs ~?= [ReqFocus (WinId 2), ReqRaise (WinId 2)]
+                        , "requests focus for 2" ~: cs ~?= [ReqFocus (WinId 2), ReqRestack [WinId 2]]
                         ]
                     )
                 ,
@@ -408,7 +408,7 @@ mruFocusSwitching =
                     ( evCmdFocusNext Nothing -- switch back again
                     , \wm cs ->
                         [ "window 2 is still focused" ~: wmFocused wm ~?= Just (WinId 2)
-                        , "requests focus for 0" ~: cs ~?= [ReqFocus (WinId 0), ReqRaise (WinId 0)]
+                        , "requests focus for 0" ~: cs ~?= [ReqFocus (WinId 0), ReqRestack [WinId 0]]
                         ]
                     )
                 ,
