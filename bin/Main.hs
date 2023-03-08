@@ -105,9 +105,9 @@ data BindAction
 config :: WmConfig
 config =
     wcDefault
-        { wcSnapDist = 10
-        , wcSnapGap = 0
-        , wcBorderWidth = 3
+        { wcSnapDist = 5
+        , wcSnapGap = 2
+        , wcBorderWidth = 1
         }
 
 -- events specialized with config... perhaps a smell todo
@@ -143,13 +143,13 @@ keyBinds =
     , (xK_grave, modMask, BindActWm evCmdFocusPrev)
     , (xK_comma, modMask, BindActWm evCmdFocusPrev)
     , (xK_q, modMask, BindActWm evCmdClose)
-    , (xK_m, modMask, BindActWm evCmdMaximize)
+    , (xK_m, modMask, BindActWm evCmdToggleMaximize)
     , (xK_f, modMask, BindActWm evCmdFullscreen')
     , (xK_bracketleft, modMask, BindActWm (evCmdScreenProportionalResize config (0, 0.5, 0, 1)))
     , (xK_bracketright, modMask, BindActWm (evCmdScreenProportionalResize config (0.5, 1.0, 0, 1)))
     , (xK_Escape, modMask, BindActWm evCmdLower)
     , (xK_p, modMask, BindActIO $ void (spawnProcess "dmenu_run" []))
-    , (xK_Return, modMask, BindActIO $ void (spawnProcess "st" []))
+    , (xK_Return, modMask, BindActIO $ void (spawnProcess "alacritty" []))
     , (xK_e, modMask, BindActIO $ void (spawnProcess "e" []))
     , (xK_v, modMask, BindActIO $ void (spawnProcess "pavucontrol" []))
     , (xK_q, modMask .|. shiftMask, BindActIO $ void (executeFile "xshlurp" True [] Nothing))
@@ -269,6 +269,7 @@ newWindow d w = do
                         { winId = w
                         , winBounds = bounds
                         , winMapped = isMapped
+                        , winPrevBounds = Nothing
                         }
 
 mag :: (Integer, Integer) -> (Integer, Integer) -> Float

@@ -37,6 +37,7 @@ win0 =
         { winId = wid0
         , winBounds = Bounds 0 10 0 10
         , winMapped = False
+        , winPrevBounds = Nothing
         }
 
 win1 :: Win
@@ -45,6 +46,7 @@ win1 =
         { winId = wid1
         , winBounds = Bounds 0 10 0 10
         , winMapped = False
+        , winPrevBounds = Nothing
         }
 
 win2 :: Win
@@ -53,6 +55,7 @@ win2 =
         { winId = (WinId 2)
         , winBounds = Bounds 0 10 0 10
         , winMapped = False
+        , winPrevBounds = Nothing
         }
 
 wmTwoWindows :: WmState
@@ -97,6 +100,7 @@ mapsWindowBoundsExceedScreen =
                 { winId = WinId 0
                 , winBounds = Bounds (-20) 820 (-20) 650
                 , winMapped = False
+                , winPrevBounds = Nothing
                 }
      in sequenceTests
             wm0
@@ -167,6 +171,7 @@ mappedWinAt wid bs =
         { winId = wid
         , winBounds = bs
         , winMapped = True
+        , winPrevBounds = Nothing
         }
 
 -- | Makes a drag move/resize test case.
@@ -246,7 +251,7 @@ snap3Wins =
 
 resizeAWindow :: Test
 resizeAWindow =
-    let w1 = (WinId 1)
+    let w1 = WinId 1
         wm0 =
             wmBlankState{wmWindows = [mappedWinAt w1 (Bounds 100 200 300 400)]}
      in "single window resize, no snap"
@@ -433,12 +438,14 @@ maximize =
                 { winId = wid0
                 , winBounds = Bounds 0 10 0 10
                 , winMapped = True
+                , winPrevBounds = Nothing
                 }
         w1 =
             Win
                 { winId = wid1
                 , winBounds = Bounds 850 900 15 300
                 , winMapped = True
+                , winPrevBounds = Nothing
                 }
         wm0 =
             wmBlankState
@@ -473,6 +480,28 @@ lower =
                 --                )
             ]
 
+wmSingleWin :: WmState
+wmSingleWin =
+    wmBlankState
+        { wmWindows = [win0]
+        , wmFocused = Just wid0
+        }
+
+maximizeRestore :: Test
+maximizeRestore =
+    let bounds0 = Bounds 10 200 20 200
+        screen0 = Bounds 0 800 0 640
+        screen1 = Bounds 801 1000 10 500
+     in "maximize and restore a window"
+            ~: sequenceTests
+                wmSingleWin
+                    { wmScreenBounds = [screen0, screen1]
+                    , wmWindows = [win0{winBounds = bounds0}]
+                    }
+                [ (evCmdToggleMaximize, \_ cs -> ["emits resize for whole screen" ~: cs ~?= [ReqMoveResize wid0 screen0]])
+                , (evCmdToggleMaximize, \_ cs -> ["emits resize for orig position" ~: cs ~?= [ReqMoveResize wid0 bounds0]])
+                ]
+
 allTests :: Test
 allTests =
     TestList
@@ -490,6 +519,7 @@ allTests =
         , resizeSnap
         , mruFocusSwitching
         , maximize
+        , maximizeRestore
         , lower
         ]
 

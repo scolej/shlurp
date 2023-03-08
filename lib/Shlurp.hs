@@ -24,6 +24,7 @@ module Shlurp (
     evWantsMove,
     evWantsResize,
     evCmdMaximize,
+    evCmdToggleMaximize,
     evCmdFullscreen,
     evCmdLower,
     evMouseClicked,
@@ -57,6 +58,8 @@ data Win = Win
     { winId :: WinId
     , winBounds :: Bounds
     , winMapped :: Bool
+    , -- | the bounds before we did something like maximize
+      winPrevBounds :: Maybe Bounds
     }
     deriving (Eq, Show)
 
@@ -64,20 +67,20 @@ data Win = Win
 window-manager wants something to happen.
 -}
 data Request
-    = ReqFocus WinId
-    | ReqMap WinId
+    = ReqFocus !WinId
+    | ReqMap !WinId
     | -- | do whatever's necessary to begin managing this window
-      ReqManage WinId
-    | ReqLower WinId
-    | ReqRaise WinId
-    | ReqMove WinId Integer Integer
-    | ReqResize WinId Integer Integer
-    | ReqMoveResize WinId Bounds
+      ReqManage !WinId
+    | ReqLower !WinId
+    | ReqRaise !WinId
+    | ReqMove !WinId !Integer !Integer
+    | ReqResize !WinId !Integer !Integer
+    | ReqMoveResize !WinId !Bounds
     | -- | todo maybe should collapse to just "style"?
-      ReqStyleFocused WinId
-    | ReqStyleUnfocused WinId
-    | ReqClose WinId
-    | ReqRestack [WinId]
+      ReqStyleFocused !WinId
+    | ReqStyleUnfocused !WinId
+    | ReqClose !WinId
+    | ReqRestack ![WinId]
     deriving (Eq, Show)
 
 data DragResize = DragResize
@@ -189,6 +192,17 @@ wmWithFocused f wm =
     case wmFocused wm of
         Just wid -> f wm wid
         Nothing -> (wm, [])
+
+-- | Like above, but include the actual window value as well, instead of just its id.
+wmWithFocusedWin ::
+    (WmState -> WinId -> Win -> (WmState, [Request])) ->
+    WmState ->
+    (WmState, [Request])
+wmWithFocusedWin f wm =
+    fromMaybe (wm, []) $ do
+        focused <- wmFocused wm
+        win <- findWindow wm focused
+        return $ f wm focused win
 
 {- | Ensure the focus history doesn't contain any windows
 which aren't included in the window list, nor any dupes, and adds any
@@ -337,6 +351,22 @@ evCmdMaximize =
         ( \wm wid ->
             let bs = containingScreenBounds wm wid
              in (wm, catMaybes [ReqMoveResize wid <$> bs])
+        )
+
+evCmdToggleMaximize :: Ev
+evCmdToggleMaximize =
+    wmWithFocusedWin
+        ( \wm wid win ->
+            -- build two values:
+            -- the new bounds of the window
+            -- a function to update the window
+            let (newBounds, u) =
+                    case winPrevBounds win of
+                        Just prevBounds -> (Just prevBounds, \w -> w{winPrevBounds = Nothing})
+                        Nothing ->
+                            let screenBounds = containingScreenBounds wm wid
+                             in (screenBounds, \w -> w{winPrevBounds = Just (winBounds win)})
+             in (updateWindow wid u wm, catMaybes [ReqMoveResize wid <$> newBounds])
         )
 
 evCmdScreenProportionalResize :: WmConfig -> (Double, Double, Double, Double) -> Ev
@@ -507,13 +537,19 @@ addWindow win wm0 =
         wins1 = win : wins0
      in wm0{wmWindows = wins1}
 
+{- | Update a window with a function inside the WM state.
+ Reinventing lenses, one manually written function at a time.
+-}
+updateWindow :: WinId -> (Win -> Win) -> WmState -> WmState
+updateWindow wid f wm =
+    let wins0 = wmWindows wm
+        wins1 = map g wins0
+        g w = if winId w == wid then f w else w
+     in wm{wmWindows = wins1}
+
 -- | Update a window's map-state to mapped.
 setMapped :: WinId -> WmState -> WmState
-setMapped wid wm0 =
-    let wins0 = wmWindows wm0
-        wins1 = map f wins0
-        f w = if winId w == wid then w{winMapped = True} else w
-     in wm0{wmWindows = wins1}
+setMapped wid = updateWindow wid (\w -> w{winMapped = True})
 
 -- | Handles: low, middle and high.
 data CoHandle = HL | HM | HH
