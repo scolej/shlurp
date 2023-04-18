@@ -7,7 +7,6 @@ import Data.Maybe
 import Data.Time.Format
 import Data.Time.LocalTime
 import Data.Tuple.Extra
-import Debug.Trace
 import Foreign.C.Types
 import Graphics.X11.Types
 import Graphics.X11.Xinerama
@@ -106,7 +105,7 @@ config :: WmConfig
 config =
     wcDefault
         { wcSnapDist = 5
-        , wcSnapGap = 2
+        , wcSnapGap = 0
         , wcBorderWidth = 1
         }
 
@@ -209,9 +208,10 @@ main = do
 
     (_, _, existingWindows) <- queryTree d root
     mapM_ (manageNewWindow ro . WinId) existingWindows
-    ws <- fmap catMaybes (mapM (newWindow d . WinId) existingWindows)
+    ws <- fmap catMaybes (mapM (newWindow config d . WinId) existingWindows)
 
     screenBounds <- map rect2bounds <$> getScreenInfo d
+    putStrLn $ "found screen bounds:" ++ show screenBounds
 
     let wm0 =
             wmBlankState
@@ -249,8 +249,8 @@ transformBounds x y w h bw =
 {- | Make some queries and build a new window.
 If the window is an "override redirect" window, return nothing.
 -}
-newWindow :: Display -> WinId -> IO (Maybe Win)
-newWindow d w = do
+newWindow :: WmConfig -> Display -> WinId -> IO (Maybe Win)
+newWindow conf d w = do
     attr <- getWindowAttributes d (wid64 w)
     if wa_override_redirect attr
         then return Nothing
@@ -261,7 +261,7 @@ newWindow d w = do
                         (wa_y attr)
                         (wa_width attr)
                         (wa_height attr)
-                        (wa_border_width attr)
+                        (fromIntegral $ wcBorderWidth conf)
                 isMapped = wa_map_state attr == 1
             return $
                 Just $
@@ -292,7 +292,7 @@ starting and stopping grabs.
 -}
 convertEvent :: WmReadOnly -> XState -> Event -> IO ([Ev], XState)
 convertEvent ro xstate MapRequestEvent{ev_window = w} = do
-    win <- newWindow (roDisplay ro) (WinId w)
+    win <- newWindow config (roDisplay ro) (WinId w)
     return (maybeToList (evWantsMap <$> win), xstate)
 convertEvent _ xstate MapNotifyEvent{ev_window = w} =
     return ([evWasMapped (WinId w)], xstate)
