@@ -500,6 +500,10 @@ maximizeRestore =
                     }
                 [ (evCmdToggleMaximize, \_ cs -> ["emits resize for whole screen" ~: cs ~?= [ReqMoveResize wid0 screen0]])
                 , (evCmdToggleMaximize, \_ cs -> ["emits resize for orig position" ~: cs ~?= [ReqMoveResize wid0 bounds0]])
+                -- now go fullscreen again; manually resize; the next toggle maximize should go whole screen again
+                , (evCmdToggleMaximize, \_ cs -> ["emits resize for whole screen" ~: cs ~?= [ReqMoveResize wid0 screen0]])
+                , (evCmdScreenProportionalResize wcDefault (0.2, 0.3, 0.2, 0.3), \_ _ -> [])
+                , (evCmdToggleMaximize, \_ cs -> ["emits resize for whole screen" ~: cs ~?= [ReqMoveResize wid0 screen0]])
                 ]
 
 allTests :: Test

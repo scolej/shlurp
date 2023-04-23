@@ -63,6 +63,9 @@ data Win = Win
     }
     deriving (Eq, Show)
 
+winForgetPrevBounds :: Win -> Win
+winForgetPrevBounds win = win{winPrevBounds = Nothing}
+
 {- | A request from window-manager-land to the outside world:
 window-manager wants something to happen.
 -}
@@ -292,32 +295,32 @@ evDragStart conf wid x y wm0 =
 
 evDragMove :: WmConfig -> Integer -> Integer -> Ev
 evDragMove conf x y wm0 =
-    let reqs = maybeToList $ do
-            ds <- wmDragResize wm0
-            let (DragResize wid x0 y0 hand origBounds) = ds
-                dx = x - x0
-                dy = y - y0
-                (sl, sr, st, sb) = case hand of
-                    ResizeHandle HL HL -> (1, 0, 1, 0)
-                    ResizeHandle HL HM -> (1, 0, 0, 0)
-                    ResizeHandle HL HH -> (1, 0, 0, 1)
-                    ResizeHandle HM HL -> (0, 0, 1, 0)
-                    ResizeHandle HM HM -> (1, 1, 1, 1)
-                    ResizeHandle HM HH -> (0, 0, 0, 1)
-                    ResizeHandle HH HL -> (0, 1, 1, 0)
-                    ResizeHandle HH HM -> (0, 1, 0, 0)
-                    ResizeHandle HH HH -> (0, 1, 0, 1)
-                delta4 = (sl * dx, sr * dx, st * dy, sb * dy)
-                newBounds = origBounds `boundsAdd4` delta4
-                snappedBounds =
-                    snapWindowBounds
-                        conf
-                        wm0
-                        wid
-                        (hand == ResizeHandle HM HM)
-                        newBounds
-            return $ ReqMoveResize wid (minBounds snappedBounds)
-     in (wm0, reqs)
+    fromMaybe (wm0, []) $ do
+        ds <- wmDragResize wm0
+        let (DragResize wid x0 y0 hand origBounds) = ds
+            dx = x - x0
+            dy = y - y0
+            (sl, sr, st, sb) = case hand of
+                ResizeHandle HL HL -> (1, 0, 1, 0)
+                ResizeHandle HL HM -> (1, 0, 0, 0)
+                ResizeHandle HL HH -> (1, 0, 0, 1)
+                ResizeHandle HM HL -> (0, 0, 1, 0)
+                ResizeHandle HM HM -> (1, 1, 1, 1)
+                ResizeHandle HM HH -> (0, 0, 0, 1)
+                ResizeHandle HH HL -> (0, 1, 1, 0)
+                ResizeHandle HH HM -> (0, 1, 0, 0)
+                ResizeHandle HH HH -> (0, 1, 0, 1)
+            delta4 = (sl * dx, sr * dx, st * dy, sb * dy)
+            newBounds = origBounds `boundsAdd4` delta4
+            snappedBounds =
+                snapWindowBounds
+                    conf
+                    wm0
+                    wid
+                    (hand == ResizeHandle HM HM)
+                    newBounds
+        let wm1 = updateWindow wid winForgetPrevBounds wm0
+        return (wm1, [ReqMoveResize wid (minBounds snappedBounds)])
 
 evDragFinish :: Ev
 evDragFinish wm0 = (wm0{wmDragResize = Nothing}, [])
@@ -372,10 +375,10 @@ evCmdToggleMaximize =
 evCmdScreenProportionalResize :: WmConfig -> (Double, Double, Double, Double) -> Ev
 evCmdScreenProportionalResize conf (l, r, t, b) =
     wmWithFocused
-        ( \wm wid ->
-            let snap = snapWindowBounds conf wm wid False
+        ( \wm0 wid ->
+            let snap = snapWindowBounds conf wm0 wid False
                 bs = do
-                    Bounds sl sr st sb <- containingScreenBounds wm wid
+                    Bounds sl sr st sb <- containingScreenBounds wm0 wid
                     let w = (fromIntegral $ sr - sl) :: Double
                         h = (fromIntegral $ sb - st) :: Double
                         wl = round $ fromIntegral sl + l * w
@@ -383,7 +386,8 @@ evCmdScreenProportionalResize conf (l, r, t, b) =
                         wt = round $ fromIntegral st + t * h
                         wb = round $ fromIntegral st + b * h
                     return $ snap $ Bounds wl wr wt wb
-             in (wm, catMaybes [ReqMoveResize wid <$> bs])
+                wm1 = updateWindow wid winForgetPrevBounds wm0
+             in (wm1, catMaybes [ReqMoveResize wid <$> bs])
         )
 
 evCmdFullscreen :: WmConfig -> Ev
