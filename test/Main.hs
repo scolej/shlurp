@@ -153,7 +153,7 @@ focusFollowsMouse2 =
 dragMove :: Test
 dragMove =
     let wm0 = wmBlankState{wmWindows = [mappedWinAt (WinId 0) (Bounds 10 100 10 100)]}
-        (wm1, cs1) = evDragStart wcDefault (WinId 0) 45 45 wm0
+        (wm1, cs1) = evDragStart wcDefault DragMoveResize (WinId 0) 45 45 wm0
         (wm2, cs2) = evDragMove wcDefault 65 65 wm1
         (wm3, cs3) = evDragFinish wm2
         (_, cs4) = evDragMove wcDefault 99 99 wm3
@@ -189,7 +189,7 @@ dragMoveResizeTest ::
     -- | a test case
     Test
 dragMoveResizeTest wm0 wid (x0, y0) (x1, y1) bs1 =
-    let (wm1, _) = evDragStart wcDefault wid x0 y0 wm0
+    let (wm1, _) = evDragStart wcDefault DragMoveResize  wid x0 y0 wm0
         (_, cs2) = evDragMove wcDefault x1 y1 wm1
      in cs2 ~?= [ReqMoveResize wid bs1]
 
@@ -315,7 +315,7 @@ windowResized =
 
 noConfigureWhileDragging :: Test
 noConfigureWhileDragging =
-    let (wm1, _) = evDragStart wcDefault wid0 0 0 wmTwoWindows
+    let (wm1, _) = evDragStart wcDefault DragMoveResize wid0 0 0 wmTwoWindows
         (_, cs2) = evWantsResize wid0 0 0 wm1
         (_, cs3) = evWantsMove wid0 0 0 wm1
      in "no configures while dragging"

@@ -56,9 +56,8 @@ data XDragState
     = -- | there is no drag state at all
       NoDrag
     | -- | the mouse button is pressed at some x & y (not yet released),
-      -- this might become a drag,
-      -- but it might just be a click
-      NascentDrag WinId Integer Integer
+      -- this might become a drag, but it might just be a click
+      NascentDrag WinId Integer Integer DragKind
     | -- | mouse button is down and mouse is moving around, drag is active!
       DragInProgress
 
@@ -104,9 +103,9 @@ data BindAction
 config :: WmConfig
 config =
     wcDefault
-        { wcSnapDist = 5
-        , wcSnapGap = 0
-        , wcBorderWidth = 1
+        { wcSnapDist = 15
+        , wcSnapGap = 2
+        , wcBorderWidth = 2
         }
 
 -- events specialized with config... perhaps a smell todo
@@ -156,23 +155,27 @@ keyBinds =
 
 grabKeys :: WmReadOnly -> IO ()
 grabKeys (WmReadOnly{roDisplay = d, roRoot = root}) = do
-    grabButton
-        d
-        anyButton
-        modMask
-        root
-        False
-        (buttonPressMask .|. buttonReleaseMask .|. button1MotionMask)
-        grabModeAsync
-        grabModeAsync
-        none
-        currentTime
+    -- grab mouse buttons
+    let grab mask =
+          grabButton
+            d
+            anyButton
+            mask
+            root
+            False
+            (buttonPressMask .|. buttonReleaseMask .|. button1MotionMask)
+            grabModeAsync
+            grabModeAsync
+            none
+            currentTime
+    grab (modMask)
+    grab (modMask .|. shiftMask)
 
+    -- grab keys
     let grab sym mask = do
             kc <- keysymToKeycode d sym
             grabKey d kc mask root False grabModeAsync grabModeAsync
         grab1 (sym, mask, _) = grab sym mask
-
     mapM_ grab1 keyBinds
     grab modKeyL 0
     grab modKeyR 0
@@ -283,8 +286,11 @@ justIf True x = Just x
 justIf False _ = Nothing
 
 -- | Determines if a mask value contains all of the specified mask bits.
-hasBits :: [Mask] -> CULong -> Bool
-hasBits ms v = fromIntegral v .&. (foldl (.|.) 0 ms) /= 0
+-- todo i reckon there's a better way to write this!
+hasBits :: (Integral i, Integral j) => [i] -> j -> Bool
+hasBits ms v =
+  let ms' = map fromIntegral ms
+  in (fromIntegral v :: Word) .&. (foldl (.|.) 0 ms') /= 0
 
 {- | Converts an X event to our internal event type.
 Also performs any X wrangling to achieve this, eg:
@@ -326,10 +332,10 @@ convertEvent
         let x = fromIntegral ex
             y = fromIntegral ey
         return $ case dragState of
-            NascentDrag win x0 y0 ->
+            NascentDrag win x0 y0 kind ->
                 if mag (x0, y0) (x, y) > (fromIntegral $ wcDragThreshold config)
                     then
-                        ( [evDragStart' win x0 y0, evDragMove' x y]
+                        ( [evDragStart' kind win x0 y0, evDragMove' x y]
                         , xstate{xsDragState = DragInProgress}
                         )
                     else ([evDragMove' x y], xstate)
@@ -390,14 +396,16 @@ convertEvent
         , ev_x_root = x
         , ev_y_root = y
         , ev_button = but
+        , ev_state = mask
         }
         | et == buttonPress && but == button1 = do
             let m = pointerMotionMask .|. buttonPressMask .|. buttonReleaseMask
             _ <- grabPointer d r False m grabModeAsync grabModeAsync none none currentTime
+            let kind = if hasBits [shiftMask] mask then DragMoveResize else DragMoveOnly
             return
                 ( []
                 , xstate
-                    { xsDragState = NascentDrag (WinId w) (fromIntegral x) (fromIntegral y)
+                    { xsDragState = NascentDrag (WinId w) (fromIntegral x) (fromIntegral y) kind
                     , xsNakedMod = False
                     }
                 )

@@ -17,6 +17,7 @@ module Shlurp (
     evMouseEntered,
     evFocusIn,
     evFocusOut,
+    DragKind(..),
     evDragStart,
     evDragMove,
     evDragFinish,
@@ -282,14 +283,18 @@ evFocusIn wid wm0 =
 evFocusOut :: WinId -> Ev
 evFocusOut wid wm0 = (wm0, [ReqStyleUnfocused wid])
 
-evDragStart :: WmConfig -> WinId -> Integer -> Integer -> Ev
-evDragStart conf wid x y wm0 =
+data DragKind = DragMoveOnly | DragMoveResize
+
+evDragStart :: WmConfig -> DragKind -> WinId -> Integer -> Integer -> Ev
+evDragStart conf kind wid x y wm0 =
     let mw = findWindow wm0 wid
         hf = wcHandleFrac $ conf
         ds = do
             win <- mw
             let bs = winBounds win
-                hand = grabWindowHandle hf bs (x, y)
+                hand = case kind of
+                         DragMoveOnly -> ResizeHandle HM HM
+                         DragMoveResize -> grabWindowHandle hf bs (x, y)
             return $ DragResize wid x y hand bs
      in (wm0{wmDragResize = ds}, [])
 
