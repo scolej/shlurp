@@ -8,27 +8,37 @@ This is pretty crappy and combines the worst of all worlds.
 A simple mod-wrapped int would perform the task better than this.
 -}
 data Ring a = Ring [a] a [a]
+            | EmptyRing
     deriving (Show)
 
 ringFromList :: [a] -> Ring a
-ringFromList [] = undefined
+ringFromList [] = EmptyRing
 ringFromList xs = Ring (reverse $ tail xs) (head xs) (tail xs)
 
-ringFocus :: Ring a -> a
-ringFocus (Ring _ x _) = x
+ringToList :: Ring a -> [a]
+ringToList (Ring as x bs) = x : bs ++ reverse as
+ringToList EmptyRing = []
+
+ringFocus :: Ring a -> Maybe a
+ringFocus (Ring _ x _) = Just x
+ringFocus EmptyRing = Nothing
 
 ringRotate :: Ring a -> Ring a
-ringRotate r@(Ring [] _ []) = r
+ringRotate r@(Ring _ _ []) = r
 ringRotate (Ring as x bs) = Ring (x : init as) (head bs) (tail bs ++ [x])
+ringRotate EmptyRing = EmptyRing
 
 ringRotateBack :: Ring a -> Ring a
-ringRotateBack r@(Ring [] _ []) = r
+ringRotateBack r@(Ring [] _ _) = r
 ringRotateBack (Ring as x bs) = Ring (tail as ++ [x]) (head as) (x : init bs)
+ringRotateBack EmptyRing = EmptyRing
 
 ringFilter :: (a -> Bool) -> Ring a -> Ring a
-ringFilter f (Ring as x bs) =
-    let as' = filter f as
-        bs' = filter f bs
-     in if f x
-            then Ring as' x bs'
-            else Ring as' (head bs') (tail bs')
+ringFilter f = ringFromList . filter f . ringToList
+
+-- [1] 2 [1]
+-- [1] _ [1]
+-- [] 1 []
+
+-- invariants
+-- each element occurs at most once

@@ -445,7 +445,25 @@ closeWhileFocusSwitching =
      wm0 [ ( evCmdClose, \_ cs -> ["requests to close the focused window" ~: cs ~?= [ReqClose (WinId 1)]])
          , ( evWasDestroyed (WinId 1), \_ _ -> [])
          , ( evFocusIn (WinId 2), \_ _ -> [])
-         , ( evCmdFocusNext Nothing, \_ cs -> ["requests focus for next window" ~: cs ~?= [ ReqFocus (WinId 2), ReqRestack [(WinId 2)]]])
+         , ( evCmdFocusNext Nothing, \_ cs -> ["requests focus for next window" ~: cs ~?= [ReqFocus (WinId 0), ReqRestack [(WinId 0)]]])
+         ]
+        
+closeWhileFocusSwitching2 :: Test
+closeWhileFocusSwitching2 =
+  let wm0 =
+        handleEvents
+        wmTwoWindows
+                [ evFocusIn (WinId 1)
+                , evFocusIn (WinId 0) -- set up known focus order
+                , evCmdFocusNext Nothing -- switch back
+                , evFocusIn (WinId 1) -- we get a focus-in for our request
+                ]
+  in "close a window while focus switching"
+     ~: sequenceTests
+     wm0 [ ( evCmdClose, \_ cs -> ["requests to close the focused window" ~: cs ~?= [ReqClose (WinId 1)]])
+         , ( evWasDestroyed (WinId 1), \_ _ -> [])
+         , ( evFocusIn (WinId 0), \_ _ -> [])
+         , ( evCmdFocusNext Nothing, \_ cs -> ["no requests, there's only one window and it's already focused" ~: cs ~?= [ReqFocus (WinId 0), ReqRestack [(WinId 0)]]]) -- todo
          ]
         
 
@@ -546,6 +564,7 @@ allTests =
         , maximizeRestore
         , lower
         , closeWhileFocusSwitching
+        , closeWhileFocusSwitching2
         ]
 
 main :: IO ()

@@ -432,7 +432,9 @@ evCmdClose = wmWithFocused (\wm wid -> (wm, [ReqClose wid]))
 evCmdFocusNextFilter :: (Win -> Bool) -> Maybe [WinId] -> Ev
 evCmdFocusNextFilter f stackOrder wm0 =
     let wm1 = rotateRing ringRotate $ wmInitFocusRing f wm0
-        mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
+        mfoc = do
+          r <- wmFocusRing wm1
+          ringFocus (fcsRing r)
         -- only update the stack order if there's nothing there, we're
         -- preserving the original stack order so we can restore it when we
         -- finish switching focus.
@@ -458,7 +460,7 @@ evCmdFocusNextUnderMouse pos =
 evCmdFocusPrev :: Ev
 evCmdFocusPrev wm0 =
     let wm1 = rotateRing ringRotateBack $ wmInitFocusRing (const True) wm0
-        mfoc = ringFocus . fcsRing <$> wmFocusRing wm1
+        mfoc = (fcsRing <$> wmFocusRing wm1) >>= ringFocus 
         so = fromMaybe [] (wmStackOrder wm0)
      in ( wm1
         , case mfoc of
@@ -498,9 +500,10 @@ but prepend the newly focused window.
 -}
 finishFocusChange :: WmState -> WmState
 finishFocusChange wm0 =
-    let reinstateHist = case wmFocusRing wm0 of
-            Just fr -> focusHistoryToFront (ringFocus (fcsRing fr) : fcsOrig fr)
-            Nothing -> id
+    let reinstateHist = fromMaybe id $ do
+            fr <- wmFocusRing wm0
+            rf <- ringFocus (fcsRing fr)
+            return $ focusHistoryToFront (rf : fcsOrig fr)
      in reinstateHist $
             wm0
                 { wmFocusRing = Nothing
