@@ -104,8 +104,8 @@ config :: WmConfig
 config =
     wcDefault
         { wcSnapDist = 15
-        , wcSnapGap = 2
-        , wcBorderWidth = 2
+        , wcSnapGap = 0
+        , wcBorderWidth = 3
         }
 
 -- events specialized with config... perhaps a smell todo

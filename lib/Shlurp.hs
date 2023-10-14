@@ -145,7 +145,7 @@ wcDefault =
         { wcSnapDist = 30
         , wcSnapGap = 2
         , wcBorderWidth = 4
-        , wcHandleFrac = 0.1
+        , wcHandleFrac = 0.4
         , wcDragThreshold = 5
         }
 

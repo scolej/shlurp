@@ -153,8 +153,8 @@ focusFollowsMouse2 =
 dragMove :: Test
 dragMove =
     let wm0 = wmBlankState{wmWindows = [mappedWinAt (WinId 0) (Bounds 10 100 10 100)]}
-        (wm1, cs1) = evDragStart wcDefault DragMoveResize (WinId 0) 45 45 wm0
-        (wm2, cs2) = evDragMove wcDefault 65 65 wm1
+        (wm1, cs1) = evDragStart wcDefault DragMoveResize (WinId 0) 55 55 wm0
+        (wm2, cs2) = evDragMove wcDefault 75 75 wm1
         (wm3, cs3) = evDragFinish wm2
         (_, cs4) = evDragMove wcDefault 99 99 wm3
         newBounds = Bounds 30 120 30 120
@@ -429,6 +429,26 @@ mruFocusSwitching =
                     )
                 ]
 
+closeWhileFocusSwitching :: Test
+closeWhileFocusSwitching =
+  let wm0 =
+        handleEvents
+        wm3Windows
+                [ evFocusIn (WinId 2)
+                , evFocusIn (WinId 1)
+                , evFocusIn (WinId 0) -- set up known focus order
+                , evCmdFocusNext Nothing -- switch back
+                , evFocusIn (WinId 1) -- we get a focus-in for our request
+                ]
+  in "close a window while focus switching"
+     ~: sequenceTests
+     wm0 [ ( evCmdClose, \_ cs -> ["requests to close the focused window" ~: cs ~?= [ReqClose (WinId 1)]])
+         , ( evWasDestroyed (WinId 1), \_ _ -> [])
+         , ( evFocusIn (WinId 2), \_ _ -> [])
+         , ( evCmdFocusNext Nothing, \_ cs -> ["requests focus for next window" ~: cs ~?= [ ReqFocus (WinId 2), ReqRestack [(WinId 2)]]])
+         ]
+        
+
 maximize :: Test
 maximize =
     let screen0 = Bounds 0 800 0 640
@@ -525,6 +545,7 @@ allTests =
         , maximize
         , maximizeRestore
         , lower
+        , closeWhileFocusSwitching
         ]
 
 main :: IO ()
